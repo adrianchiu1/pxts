@@ -1,4 +1,5 @@
 """Unit and integration tests for pxts.io: read_ts, write_ts, _detect_date_format."""
+import warnings as _warnings
 import pandas as pd
 import pytest
 from pathlib import Path
@@ -45,19 +46,22 @@ class TestDetectDateFormat:
 
     def test_unambiguous_uk_no_warning(self):
         """First part > 12 → unambiguous UK — no warning emitted."""
-        with pytest.warns(None) as record:
+        with _warnings.catch_warnings(record=True) as record:
+            _warnings.simplefilter("always")
             _detect_date_format("13/02/2024")
         assert len(record) == 0
 
     def test_unambiguous_us_no_warning(self):
         """Second part > 12 → unambiguous US — no warning emitted."""
-        with pytest.warns(None) as record:
+        with _warnings.catch_warnings(record=True) as record:
+            _warnings.simplefilter("always")
             _detect_date_format("01/13/2024")
         assert len(record) == 0
 
     def test_iso_no_warning(self):
         """ISO format → no warning emitted."""
-        with pytest.warns(None) as record:
+        with _warnings.catch_warnings(record=True) as record:
+            _warnings.simplefilter("always")
             _detect_date_format("2024-01-02")
         assert len(record) == 0
 
@@ -110,7 +114,8 @@ class TestReadTs:
         """Explicit date_format param bypasses detection — no warning emitted."""
         rows = ["date,A,B", "01/02/2024,1.0,5.0", "01/03/2024,2.0,4.0"]
         path = write_csv(tmp_path, rows)
-        with pytest.warns(None) as record:
+        with _warnings.catch_warnings(record=True) as record:
+            _warnings.simplefilter("always")
             df = read_ts(path, date_format="%d/%m/%Y")
         assert len(record) == 0
         assert isinstance(df.index, pd.DatetimeIndex)
