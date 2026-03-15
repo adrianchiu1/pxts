@@ -9,7 +9,7 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 ### Testing
 
-- [ ] **TEST-01**: `tests/` directory exists with pytest-runnable unit tests
+- [x] **TEST-01**: `tests/` directory exists with pytest-runnable unit tests
 - [ ] **TEST-02**: `test_core.py` covers `validate_ts`, `set_tz`, `to_dense`, `infer_freq` — including edge cases
 - [ ] **TEST-03**: `test_io.py` covers `read_ts` and `write_ts` — including ambiguous date format paths
 - [ ] **TEST-04**: `test_plots.py` covers `tsplot` and `tsplot_dual` for both backends (mocked)
@@ -64,7 +64,7 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TEST-01 | Phase 1 | Pending |
+| TEST-01 | Phase 1 | Complete |
 | TEST-02 | Phase 1 | Pending |
 | TEST-03 | Phase 1 | Pending |
 | TEST-04 | Phase 1 | Pending |

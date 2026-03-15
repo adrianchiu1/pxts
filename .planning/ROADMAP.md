@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 5 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Pytest infrastructure: tests/__init__.py and conftest.py with shared fixtures
+- [x] 01-01-PLAN.md — Pytest infrastructure: tests/__init__.py and conftest.py with shared fixtures
 - [ ] 01-02-PLAN.md — test_core.py: validate_ts, set_tz, to_dense, infer_freq with edge cases
 - [ ] 01-03-PLAN.md — test_io.py: read_ts, write_ts, _detect_date_format including ambiguous date path
 - [ ] 01-04-PLAN.md — test_plots.py: tsplot and tsplot_dual for both backends (mocked rendering)
@@ -67,6 +67,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Test Suite | 0/5 | Not started | - |
+| 1. Test Suite | 1/5 | In progress | - |
 | 2. Bug Fixes and Dependencies | 0/? | Not started | - |
 | 3. Documentation and Polish | 0/? | Not started | - |
