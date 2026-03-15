@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 1 of 3 (Test Suite)
-Plan: 3 of ? in current phase
-Status: In progress
-Last activity: 2026-03-15 — Plan 01-03 complete: test_io.py — 17 passing tests for read_ts, write_ts, and _detect_date_format
+Plan: 5 of 5 in current phase
+Status: Phase 1 complete
+Last activity: 2026-03-15 — Plan 01-05 complete: test_accessor.py and test_theme.py — 18 passing tests for TsAccessor delegation and apply_theme()
 
 Progress: [█░░░░░░░░░] ~10%
 
@@ -68,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 01-test-suite]: Assert current ambiguous date behavior (silent US default) without pytest.warns — TODO(Phase-2) marks update point for FIX-01
 - [Phase 01-test-suite]: Import pxts.accessor at module level — idempotent registration, safe as module-level side effect
 - [Phase 01-test-suite]: Import from pxts.theme directly (not import pxts) in test_theme.py to avoid apply_theme() triggering before restore_rcparams fixture
+- [01-04]: Use explicit backend= parameter in plot tests — bypasses get_backend() entirely, no patching needed, simpler and more reliable
+- [01-04]: matplotlib.use("Agg") at module level in test_plots.py — required for headless CI environments
 
 ### Pending Todos
 
@@ -81,5 +83,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Completed 01-test-suite-03-PLAN.md — test_io.py with 17 passing tests
+Stopped at: Completed 01-test-suite-04-PLAN.md — test_plots.py with 18 tests for tsplot/tsplot_dual (both backends)
 Resume file: None
