@@ -188,3 +188,52 @@ class TestAdjustTextWarning:
 
         # Restore flag to False for other tests
         plots_module._ADJUSTTEXT_WARNED = False
+
+
+# ---------------------------------------------------------------------------
+# FIX-05: parameter type validation in tsplot and tsplot_dual
+# ---------------------------------------------------------------------------
+
+class TestParameterTypeValidation:
+    def test_tsplot_hlines_wrong_type_raises(self, ts_df):
+        """tsplot(hlines=42.0) → ValueError mentioning 'hlines'."""
+        with pytest.raises(ValueError, match="hlines"):
+            tsplot(ts_df, hlines=42.0, backend="matplotlib")
+
+    def test_tsplot_title_wrong_type_raises(self, ts_df):
+        """tsplot(title=123) → ValueError mentioning 'title'."""
+        with pytest.raises(ValueError, match="title"):
+            tsplot(ts_df, title=123, backend="matplotlib")
+
+    def test_tsplot_dual_vlines_wrong_type_raises(self, ts_df):
+        """tsplot_dual(vlines='bad') → ValueError mentioning 'vlines'."""
+        with pytest.raises(ValueError, match="vlines"):
+            tsplot_dual(ts_df, left=["A"], right=["B"], vlines="bad", backend="matplotlib")
+
+    def test_tsplot_valid_params_no_error(self, ts_df):
+        """tsplot(hlines=None, title='OK') → no error."""
+        fig = tsplot(ts_df, hlines=None, title="OK", backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_hlines_list_valid(self, ts_df):
+        """tsplot(hlines=[1.0, 2.0]) → no error."""
+        fig = tsplot(ts_df, hlines=[1.0, 2.0], backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_title_none_valid(self, ts_df):
+        """tsplot(title=None) → no error (None is valid)."""
+        fig = tsplot(ts_df, title=None, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_subtitle_wrong_type_raises(self, ts_df):
+        """tsplot(subtitle=['a']) → ValueError mentioning 'subtitle'."""
+        with pytest.raises(ValueError, match="subtitle"):
+            tsplot(ts_df, subtitle=["a"], backend="matplotlib")
+
+    def test_tsplot_date_format_wrong_type_raises(self, ts_df):
+        """tsplot(date_format=42) → ValueError mentioning 'date_format'."""
+        with pytest.raises(ValueError, match="date_format"):
+            tsplot(ts_df, date_format=42, backend="matplotlib")
