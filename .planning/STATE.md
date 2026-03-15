@@ -81,5 +81,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Completed 01-test-suite-02-PLAN.md — test_core.py with 20 passing tests
+Stopped at: Completed 01-test-suite-03-PLAN.md — test_io.py with 17 passing tests
 Resume file: None
