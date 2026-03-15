@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-15T01:36:08.371Z"
+last_updated: "2026-03-15T07:02:45.897Z"
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 
 ## Current Position
 
-Phase: 1 of 3 (Test Suite)
-Plan: 5 of 5 in current phase
-Status: Phase 1 complete
-Last activity: 2026-03-15 — Plan 01-05 complete: test_accessor.py and test_theme.py — 18 passing tests for TsAccessor delegation and apply_theme()
+Phase: 2 of 3 (Bug Fixes and Dependencies)
+Plan: 2 of 3 in current phase
+Status: Phase 2 in progress
+Last activity: 2026-03-15 — Plan 02-02 complete: fixed set_tz (FIX-02), infer_freq (FIX-03), to_dense (FIX-04) — 89 tests passing
 
 Progress: [█░░░░░░░░░] ~10%
 
@@ -50,6 +50,9 @@ Progress: [█░░░░░░░░░] ~10%
 | Phase 01-test-suite P02 | 2 | 1 tasks | 1 files |
 | Phase 01-test-suite P03 | 3 | 1 tasks | 1 files |
 | Phase 01-test-suite P05 | 1 | 1 tasks | 2 files |
+| Phase 02-bug-fixes-and-dependencies P02 | 12 | 2 tasks | 2 files |
+| Phase 02-bug-fixes-and-dependencies P03 | 5 | 2 tasks | 2 files |
+| Phase 02-bug-fixes-and-dependencies P01 | 5 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -70,6 +73,12 @@ Recent decisions affecting current work:
 - [Phase 01-test-suite]: Import from pxts.theme directly (not import pxts) in test_theme.py to avoid apply_theme() triggering before restore_rcparams fixture
 - [01-04]: Use explicit backend= parameter in plot tests — bypasses get_backend() entirely, no patching needed, simpler and more reliable
 - [01-04]: matplotlib.use("Agg") at module level in test_plots.py — required for headless CI environments
+- [Phase 02-bug-fixes-and-dependencies]: UTC offset comparison at two reference points (winter+summer) for _tz_equal — handles pytz/zoneinfo/datetime.timezone heterogeneity correctly
+- [Phase 02-bug-fixes-and-dependencies]: stacklevel=3 in warnings.warn: call chain user->read_ts->_detect_date_format, points warning at user call site
+- [Phase 02-bug-fixes-and-dependencies]: hlines/vlines accept list, dict, or None in _validate_plot_params — dicts used for labeled reference lines, must not be rejected
+- [Phase 02-bug-fixes-and-dependencies]: Use warnings.catch_warnings(record=True) for no-warning assertions: pytest.warns(None) removed in pytest 7+
+- [Phase 02-bug-fixes-and-dependencies]: stacklevel=2 in warnings.warn points UserWarning at tsplot/tsplot_dual call site (user-visible location)
+- [Phase 02-bug-fixes-and-dependencies]: _ADJUSTTEXT_WARNED mutated via global declaration inside _add_mpl_end_labels — module-level persistence across calls
 
 ### Pending Todos
 

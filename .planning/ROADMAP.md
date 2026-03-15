@@ -13,7 +13,7 @@ The library works but is unverified and has several silent failure modes. This m
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Test Suite** - Establish pytest-runnable unit tests for every module (completed 2026-03-15)
-- [ ] **Phase 2: Bug Fixes and Dependencies** - Fix all silent bugs and declare missing runtime dependencies
+- [x] **Phase 2: Bug Fixes and Dependencies** - Fix all silent bugs and declare missing runtime dependencies (completed 2026-03-15)
 - [ ] **Phase 3: Documentation and Polish** - Correct misleading docstrings and improve tick format selection
 
 ## Phase Details
@@ -34,7 +34,7 @@ Plans:
 - [x] 01-01-PLAN.md — Pytest infrastructure: tests/__init__.py and conftest.py with shared fixtures
 - [ ] 01-02-PLAN.md — test_core.py: validate_ts, set_tz, to_dense, infer_freq with edge cases
 - [ ] 01-03-PLAN.md — test_io.py: read_ts, write_ts, _detect_date_format including ambiguous date path
-- [ ] 01-04-PLAN.md — test_plots.py: tsplot and tsplot_dual for both backends (mocked rendering)
+- [x] 01-04-PLAN.md — test_plots.py: tsplot and tsplot_dual for both backends (mocked rendering)
 - [ ] 01-05-PLAN.md — test_accessor.py and test_theme.py: delegation and theme isolation
 
 ### Phase 2: Bug Fixes and Dependencies
@@ -68,5 +68,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Test Suite | 5/5 | Complete   | 2026-03-15 |
-| 2. Bug Fixes and Dependencies | 0/? | Not started | - |
+| 2. Bug Fixes and Dependencies | 3/3 | Complete   | 2026-03-15 |
 | 3. Documentation and Polish | 0/? | Not started | - |
