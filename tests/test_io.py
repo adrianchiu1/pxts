@@ -38,9 +38,28 @@ class TestDetectDateFormat:
         assert _detect_date_format("01/15/2024") == ("%m/%d/%Y", False)
 
     def test_ambiguous_defaults_to_us(self):
-        """Both parts ≤ 12 → ambiguous → defaults to US format."""
-        # TODO(Phase-2): update to assert UserWarning when FIX-01 lands
-        assert _detect_date_format("01/02/2024") == ("%m/%d/%Y", False)
+        """Both parts ≤ 12 → ambiguous → defaults to US format with a UserWarning."""
+        with pytest.warns(UserWarning, match="ambiguous date"):
+            result = _detect_date_format("01/02/2024")
+        assert result == ("%m/%d/%Y", False)
+
+    def test_unambiguous_uk_no_warning(self):
+        """First part > 12 → unambiguous UK — no warning emitted."""
+        with pytest.warns(None) as record:
+            _detect_date_format("13/02/2024")
+        assert len(record) == 0
+
+    def test_unambiguous_us_no_warning(self):
+        """Second part > 12 → unambiguous US — no warning emitted."""
+        with pytest.warns(None) as record:
+            _detect_date_format("01/13/2024")
+        assert len(record) == 0
+
+    def test_iso_no_warning(self):
+        """ISO format → no warning emitted."""
+        with pytest.warns(None) as record:
+            _detect_date_format("2024-01-02")
+        assert len(record) == 0
 
     def test_fallback_non_date(self):
         """Unrecognised string → fallback mixed."""
@@ -78,14 +97,23 @@ class TestReadTs:
         assert df.index[0] == pd.Timestamp("2024-01-15")
 
     def test_ambiguous_slash_csv_treated_as_us(self, tmp_path):
-        """Ambiguous slash date (01/02/2024) silently defaults to US — no crash."""
-        # TODO(Phase-2): update to assert UserWarning when FIX-01 lands
+        """Ambiguous slash date (01/02/2024) defaults to US with a UserWarning."""
         rows = ["date,A,B", "01/02/2024,1.0,5.0", "01/03/2024,2.0,4.0"]
         path = write_csv(tmp_path, rows)
-        df = read_ts(path)
+        with pytest.warns(UserWarning, match="ambiguous date"):
+            df = read_ts(path)
         assert isinstance(df.index, pd.DatetimeIndex)
         # US default: 01/02/2024 → January 2, 2024
         assert df.index[0] == pd.Timestamp("2024-01-02")
+
+    def test_explicit_date_format_suppresses_warning(self, tmp_path):
+        """Explicit date_format param bypasses detection — no warning emitted."""
+        rows = ["date,A,B", "01/02/2024,1.0,5.0", "01/03/2024,2.0,4.0"]
+        path = write_csv(tmp_path, rows)
+        with pytest.warns(None) as record:
+            df = read_ts(path, date_format="%d/%m/%Y")
+        assert len(record) == 0
+        assert isinstance(df.index, pd.DatetimeIndex)
 
     def test_explicit_date_format_overrides_detection(self, tmp_path):
         """Explicit date_format param bypasses auto-detection."""
