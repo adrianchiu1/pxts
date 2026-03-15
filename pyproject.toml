@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pxts"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = ["pandas>=2.0", "cycler"]
+
+[project.optional-dependencies]
+plot = ["plotly>=5.0", "matplotlib>=3.5"]
+dev = ["pytest>=7.0", "plotly>=5.0", "matplotlib>=3.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
