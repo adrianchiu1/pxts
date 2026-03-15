@@ -170,10 +170,20 @@ def test_to_dense_non_datetimeindex_raises(bad_df):
         to_dense(bad_df, freq="D")
 
 
-def test_to_dense_freqstr_mismatch_not_noop(ts_df):
-    """freq='1D' on df with freqstr 'D' is NOT a no-op (known edge case)."""
-    # The no-op guard uses raw string comparison: '1D' != 'D'
+def test_to_dense_1D_alias_is_noop(ts_df):
+    """freq='1D' on df with freqstr 'D' IS a no-op after alias normalization (FIX-04).
+
+    '1D' and 'D' are semantically equivalent pandas offset aliases. The no-op guard
+    must normalize both sides before comparing so '1D' on a 'D'-freq index is a no-op.
+    """
     result = to_dense(ts_df, freq="1D")
+    assert result is ts_df
+
+
+def test_to_dense_different_freq_is_not_noop(ts_df):
+    """freq='h' on df with freqstr 'D' is NOT a no-op (genuinely different freq)."""
+    # ts_df has freq='D'; requesting hourly freq should trigger asfreq
+    result = to_dense(ts_df, freq="h")
     assert result is not ts_df
 
 
@@ -182,9 +192,22 @@ def test_to_dense_freqstr_mismatch_not_noop(ts_df):
 # ---------------------------------------------------------------------------
 
 
-def test_infer_freq_daily_returns_D(ts_df):
-    """5-row daily df → returns 'D'."""
+def test_infer_freq_daily_weekdays_returns_B(ts_df):
+    """5-row Mon-Fri daily df → returns 'B' (business day), not 'D' (FIX-03).
+
+    ts_df spans 2024-01-01 (Mon) through 2024-01-05 (Fri) — no weekends.
+    Smart detection should return 'B' since all timestamps are weekdays.
+    """
     result = infer_freq(ts_df)
+    assert result == "B"
+
+
+def test_infer_freq_daily_with_weekends_returns_D():
+    """Daily df that includes Sat or Sun → returns 'D' (calendar day) (FIX-03)."""
+    # 2024-01-01 (Mon) through 2024-01-07 (Sun) — includes Sat and Sun
+    idx = pd.date_range("2024-01-01", periods=7, freq="D")
+    df = pd.DataFrame({"v": range(7)}, index=idx)
+    result = infer_freq(df)
     assert result == "D"
 
 

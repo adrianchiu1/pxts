@@ -90,9 +90,14 @@ def to_dense(
     even if freq='B' was intended. Pass freq explicitly.
     """
     validate_ts(df)
-    # Guard: no-op if already at requested frequency
-    if df.index.freq is not None and df.index.freqstr == freq:
-        return df
+    # Guard: no-op if already at requested frequency (normalize alias before comparing)
+    if df.index.freq is not None:
+        try:
+            norm_freq = to_offset(freq).freqstr
+            if df.index.freqstr == norm_freq:
+                return df
+        except Exception:
+            pass  # Unrecognized alias — let asfreq raise its own error
     return df.asfreq(freq=freq, method=fill)
 
 
@@ -118,6 +123,10 @@ def infer_freq(df: pd.DataFrame) -> str:
             "pxts: Cannot infer frequency from fewer than 2 data points."
         )
     min_diff = diffs.min()
+    # B-vs-D: a 1-day minimum diff could be business or calendar day
+    if min_diff == pd.Timedelta(days=1):
+        has_weekend = any(ts.weekday() >= 5 for ts in df.index)
+        return "D" if has_weekend else "B"
     offset = to_offset(min_diff)
     if offset is None:
         raise ValueError(
