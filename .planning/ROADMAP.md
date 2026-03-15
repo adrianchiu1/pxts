@@ -12,7 +12,7 @@ The library works but is unverified and has several silent failure modes. This m
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Test Suite** - Establish pytest-runnable unit tests for every module
+- [x] **Phase 1: Test Suite** - Establish pytest-runnable unit tests for every module (completed 2026-03-15)
 - [ ] **Phase 2: Bug Fixes and Dependencies** - Fix all silent bugs and declare missing runtime dependencies
 - [ ] **Phase 3: Documentation and Polish** - Correct misleading docstrings and improve tick format selection
 
@@ -67,6 +67,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Test Suite | 1/5 | In progress | - |
+| 1. Test Suite | 5/5 | Complete   | 2026-03-15 |
 | 2. Bug Fixes and Dependencies | 0/? | Not started | - |
 | 3. Documentation and Polish | 0/? | Not started | - |
