@@ -92,5 +92,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Completed 01-test-suite-04-PLAN.md — test_plots.py with 18 tests for tsplot/tsplot_dual (both backends)
+Stopped at: Completed 02-02-PLAN.md — fixed set_tz/infer_freq/to_dense silent bugs in core.py (FIX-02, FIX-03, FIX-04)
 Resume file: None

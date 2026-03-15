@@ -19,7 +19,7 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 ### Dependencies
 
 - [x] **DEP-01**: `cycler` declared as explicit runtime dependency in `pyproject.toml`
-- [ ] **DEP-02**: `adjustText` documented as optional install with clear user-facing message when absent
+- [x] **DEP-02**: `adjustText` documented as optional install with clear user-facing message when absent
 
 ### Bug Fixes
 
@@ -27,7 +27,7 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 - [x] **FIX-02**: `set_tz` uses proper timezone identity comparison (not string equality) to avoid spurious conversions between semantically equivalent timezones
 - [x] **FIX-03**: `infer_freq` emits `UserWarning` when a 1-day timedelta is detected, noting it cannot distinguish `'B'` from `'D'`
 - [x] **FIX-04**: `to_dense` normalizes the `freq` alias before the no-op string comparison (so `'1D'` and `'D'` are treated as equivalent)
-- [ ] **FIX-05**: `tsplot` and `tsplot_dual` validate `hlines`, `vlines`, `title`, `subtitle`, and `date_format` parameter types with clear error messages
+- [x] **FIX-05**: `tsplot` and `tsplot_dual` validate `hlines`, `vlines`, `title`, `subtitle`, and `date_format` parameter types with clear error messages
 
 ### Documentation Fixes
 
@@ -71,12 +71,12 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 | TEST-05 | Phase 1 | Complete |
 | TEST-06 | Phase 1 | Complete |
 | DEP-01 | Phase 2 | Complete |
-| DEP-02 | Phase 2 | Pending |
+| DEP-02 | Phase 2 | Complete |
 | FIX-01 | Phase 2 | Complete |
 | FIX-02 | Phase 2 | Complete |
 | FIX-03 | Phase 2 | Complete |
 | FIX-04 | Phase 2 | Complete |
-| FIX-05 | Phase 2 | Pending |
+| FIX-05 | Phase 2 | Complete |
 | DOC-01 | Phase 3 | Pending |
 | DOC-02 | Phase 3 | Pending |
 | DOC-03 | Phase 3 | Pending |
