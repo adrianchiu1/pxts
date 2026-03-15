@@ -106,6 +106,19 @@ def test_set_tz_naive_to_eastern():
     assert "Eastern" in str(result.index.tz)
 
 
+def test_set_tz_etc_utc_is_noop():
+    """UTC-aware index + tz='Etc/UTC' → same object returned, no warning (FIX-02).
+
+    'Etc/UTC' and 'UTC' are semantically equivalent timezones. Calling set_tz
+    with a semantically equivalent zone must be a no-op — no conversion, no warning.
+    """
+    utc_df = _make_utc_df()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = set_tz(utc_df, tz="Etc/UTC")
+    assert result is utc_df
+
+
 def test_set_tz_non_datetimeindex_raises(bad_df):
     """set_tz propagates pxtsValidationError from validate_ts gate."""
     with pytest.raises(pxtsValidationError):
