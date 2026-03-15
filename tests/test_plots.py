@@ -154,3 +154,37 @@ class TestValidation:
         """Unknown column in left → raises ValueError."""
         with pytest.raises(ValueError, match="NOPE"):
             tsplot_dual(ts_df, left=["NOPE"], right=["B"], backend="matplotlib")
+
+
+# ---------------------------------------------------------------------------
+# DEP-02: once-per-session adjustText missing warning
+# ---------------------------------------------------------------------------
+
+class TestAdjustTextWarning:
+    def test_adjusttext_warning_emitted_once(self, ts_df):
+        """First call with labels=True when adjustText absent → UserWarning with 'adjustText'.
+        Second call → no warning (module-level flag prevents repeat).
+        """
+        import pxts.plots as plots_module
+        import unittest.mock as mock
+
+        # Reset the module-level flag so we start fresh
+        plots_module._ADJUSTTEXT_WARNED = False
+
+        # Patch adjustText import inside _add_mpl_end_labels to simulate absence
+        with mock.patch.dict("sys.modules", {"adjustText": None}):
+            # First call — should emit exactly one UserWarning mentioning adjustText
+            with pytest.warns(UserWarning, match="adjustText") as warning_list:
+                fig1 = tsplot(ts_df, labels=True, backend="matplotlib")
+            plt.close(fig1)
+            assert len(warning_list) == 1
+
+            # Second call — flag is now True, no warning should be emitted
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")  # Any warning would become an error
+                fig2 = tsplot(ts_df, labels=True, backend="matplotlib")
+            plt.close(fig2)
+
+        # Restore flag to False for other tests
+        plots_module._ADJUSTTEXT_WARNED = False
