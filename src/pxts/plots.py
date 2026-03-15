@@ -55,6 +55,38 @@ def _validate_cols(df, cols, param_name: str = "cols") -> None:
         )
 
 
+def _validate_plot_params(
+    hlines, vlines, title, subtitle, date_format, caller: str
+) -> None:
+    """Validate parameter types for tsplot and tsplot_dual.
+
+    hlines/vlines accept list, dict, or None (dict is used for labeled reference lines).
+    title, subtitle, date_format accept str or None.
+
+    Raises ValueError with a clear message naming the parameter and expected type.
+    """
+    if not isinstance(hlines, (list, dict, type(None))):
+        raise ValueError(
+            f"{caller}: hlines must be list or None, got {type(hlines).__name__}"
+        )
+    if not isinstance(vlines, (list, dict, type(None))):
+        raise ValueError(
+            f"{caller}: vlines must be list or None, got {type(vlines).__name__}"
+        )
+    if not isinstance(title, (str, type(None))):
+        raise ValueError(
+            f"{caller}: title must be str or None, got {type(title).__name__}"
+        )
+    if not isinstance(subtitle, (str, type(None))):
+        raise ValueError(
+            f"{caller}: subtitle must be str or None, got {type(subtitle).__name__}"
+        )
+    if not isinstance(date_format, (str, type(None))):
+        raise ValueError(
+            f"{caller}: date_format must be str or None, got {type(date_format).__name__}"
+        )
+
+
 def _detect_plotly_tickformat(df) -> str:
     """Return a d3 tickformat string based on the DatetimeIndex span.
 
@@ -519,6 +551,7 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
         ValueError: if any value in cols is not in df.columns.
     """
     validate_ts(df)
+    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot")
     if cols is None:
         cols = list(df.columns)
     _validate_cols(df, cols)
@@ -560,6 +593,7 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
         ValueError: if any value in left or right is not in df.columns.
     """
     validate_ts(df)
+    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot_dual")
     _validate_cols(df, left, param_name="left")
     _validate_cols(df, right, param_name="right")
 
