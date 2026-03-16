@@ -357,43 +357,38 @@ class TestAxisLimits:
 
 
 # ---------------------------------------------------------------------------
-# DOC-04 / POL-01: _detect_plotly_tickformat — median-diff algorithm
+# PLOTLY-01 / PLOTLY-02: _PLOTLY_TICKFORMATSTOPS — zoom-responsive date axis
 # ---------------------------------------------------------------------------
 
-class TestDetectPlotlyTickformat:
-    """Tests for _detect_plotly_tickformat using median consecutive-diff algorithm."""
+class TestPlotlyTickformatstops:
+    """Tests for _PLOTLY_TICKFORMATSTOPS constant and its integration into tsplot/tsplot_dual."""
 
-    def _make_df(self, idx):
-        import numpy as np
-        return pd.DataFrame({"v": np.ones(len(idx))}, index=idx)
+    def test_constant_has_four_tiers(self):
+        """_PLOTLY_TICKFORMATSTOPS must have exactly 4 zoom tiers."""
+        from pxts.plots import _PLOTLY_TICKFORMATSTOPS
+        assert len(_PLOTLY_TICKFORMATSTOPS) == 4
 
-    def test_daily_5yr_returns_day_format(self):
-        """Dense daily data spanning 5 years: median diff ~1 day → '%b %d'."""
-        from pxts.plots import _detect_plotly_tickformat
-        import numpy as np
-        idx = pd.date_range("2018-01-01", periods=365 * 5, freq="D")
-        df = self._make_df(idx)
-        assert _detect_plotly_tickformat(df) == "%b %d"
+    def test_constant_tiers_have_required_keys(self):
+        """Each tier must have dtickrange and value keys."""
+        from pxts.plots import _PLOTLY_TICKFORMATSTOPS
+        for tier in _PLOTLY_TICKFORMATSTOPS:
+            assert "dtickrange" in tier
+            assert "value" in tier
 
-    def test_monthly_2yr_returns_month_year_format(self):
-        """Monthly data spanning 2 years: median diff ~30 days → '%b %Y'."""
-        from pxts.plots import _detect_plotly_tickformat
-        import numpy as np
-        idx = pd.date_range("2022-01-01", periods=24, freq="ME")
-        df = self._make_df(idx)
-        assert _detect_plotly_tickformat(df) == "%b %Y"
+    def test_tsplot_plotly_uses_tickformatstops_when_no_date_format(self, ts_df):
+        """tsplot plotly backend uses tickformatstops (not tickformat) by default."""
+        fig = tsplot(ts_df, backend="plotly")
+        assert fig.layout.xaxis.tickformatstops, "tickformatstops should be present"
+        assert not fig.layout.xaxis.tickformat, "tickformat should be absent"
 
-    def test_annual_5yr_returns_year_format(self):
-        """Annual data spanning 5 years: median diff ~365 days → '%Y'."""
-        from pxts.plots import _detect_plotly_tickformat
-        import numpy as np
-        idx = pd.date_range("2019-01-01", periods=5, freq="YE")
-        df = self._make_df(idx)
-        assert _detect_plotly_tickformat(df) == "%Y"
+    def test_tsplot_plotly_uses_tickformat_when_date_format_given(self, ts_df):
+        """tsplot plotly backend uses static tickformat when date_format is provided."""
+        fig = tsplot(ts_df, date_format="%Y", backend="plotly")
+        assert fig.layout.xaxis.tickformat == "%Y"
+        assert not fig.layout.xaxis.tickformatstops, "tickformatstops should be absent"
 
-    def test_single_row_returns_day_format(self):
-        """Single-row DataFrame: no diffs possible → graceful fallback '%b %d'."""
-        from pxts.plots import _detect_plotly_tickformat
-        idx = pd.date_range("2023-01-01", periods=1)
-        df = self._make_df(idx)
-        assert _detect_plotly_tickformat(df) == "%b %d"
+    def test_tsplot_dual_plotly_uses_tickformatstops(self, ts_df):
+        """tsplot_dual plotly backend uses tickformatstops by default."""
+        cols = list(ts_df.columns)
+        fig = tsplot_dual(ts_df, left=[cols[0]], right=[cols[1]], backend="plotly")
+        assert fig.layout.xaxis.tickformatstops, "dual: tickformatstops should be present"

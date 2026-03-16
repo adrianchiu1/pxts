@@ -157,36 +157,31 @@ def _validate_plot_params(
     _validate_axis_limit(ylim_rhs, "ylim_rhs")
 
 
-def _detect_plotly_tickformat(df) -> str:
-    """Return a d3 tickformat string based on the median interval between index timestamps.
-
-    Uses the median of consecutive index differences (not total span) so that sparse
-    datasets with clustered points select an appropriate tick granularity rather than
-    the granularity implied by the full date range.
-
-    Thresholds (applied to median_days):
-        - median_days > 180: '%Y'    (semi-annual or annual data)
-        - median_days > 25: '%b %Y'  (monthly or quarterly data)
-        - else: '%b %d'              (daily or sub-daily data)
-
-    Edge case: single-row DataFrame (no diffs possible) → defaults to '%b %d'.
-    """
-    if len(df) < 2:
-        return "%b %d"
-    diffs = pd.Series(df.index).diff().dropna()
-    median_days = diffs.median().days
-    if median_days > 180:
-        return "%Y"
-    elif median_days > 25:
-        return "%b %Y"
-    else:
-        return "%b %d"
-
 
 def _sorted_cols_by_last_value(df, cols) -> list:
     """Return cols sorted by their last value in df (descending)."""
     last_vals = {c: df[c].iloc[-1] for c in cols}
     return sorted(cols, key=lambda c: last_vals[c], reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# Plotly date axis — zoom-responsive tick format stops
+# ---------------------------------------------------------------------------
+
+# Plotly dtickrange values are in milliseconds.
+# Each entry: [lower_bound_ms, upper_bound_ms] for when that format applies.
+# None means "no bound" (open-ended).
+# Tiers ordered most-zoomed-out to most-zoomed-in (Plotly requires this order).
+_PLOTLY_TICKFORMATSTOPS = [
+    # Decade+ view: show year only
+    dict(dtickrange=[None, 1000 * 60 * 60 * 24 * 365 * 2], value="%Y"),
+    # Year view: show month + year
+    dict(dtickrange=[1000 * 60 * 60 * 24 * 28, 1000 * 60 * 60 * 24 * 365 * 2], value="%b %Y"),
+    # Month view: show month + day
+    dict(dtickrange=[1000 * 60 * 60 * 24, 1000 * 60 * 60 * 24 * 28], value="%b %d"),
+    # Day/sub-day view: show day only
+    dict(dtickrange=[None, 1000 * 60 * 60 * 24], value="%d"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -374,13 +369,80 @@ def _plot_ts_mpl(df, cols, title, subtitle, labels, hlines, vlines,
     return fig
 
 
+def _add_plotly_year_annotation(fig, df) -> None:
+    """Add a small year label at the bottom-right of a Plotly figure.
+
+    Equivalent to matplotlib ConciseDateFormatter's offset label: shows the
+    current year so the viewer always has year context when viewing sub-year data.
+    Uses the last index value's year. Placed at xref='paper', yref='paper',
+    bottom-right corner, small font, no arrow.
+    """
+    if len(df) == 0:
+        return
+    year = df.index[-1].year
+    fig.add_annotation(
+        text=str(year),
+        xref="paper",
+        yref="paper",
+        x=1.0,
+        y=-0.08,
+        showarrow=False,
+        font=dict(size=DEFAULT_FONT_SIZE - 2),
+        xanchor="right",
+        yanchor="top",
+    )
+
+
+def _extend_yaxis_for_legend(fig, df, cols, ylim) -> None:
+    """Extend y-axis upper bound to create headroom for the top-right legend.
+
+    If any series' last value falls in the top 25% of the y-range AND ylim was
+    not explicitly set by the user, extend the upper bound by 15% to push data
+    away from the legend area.
+
+    Only operates on the primary y-axis (yaxis). Does not touch secondary_y.
+    Only applies when ylim is None (never overrides user-set limits).
+    """
+    if ylim is not None:
+        return
+    if not cols:
+        return
+
+    # Compute data y-range from all plotted columns
+    all_vals = []
+    for col in cols:
+        series = df[col].dropna()
+        if len(series) > 0:
+            all_vals.extend([series.min(), series.max()])
+    if not all_vals:
+        return
+
+    y_min = min(all_vals)
+    y_max = max(all_vals)
+    y_range = y_max - y_min
+    if y_range == 0:
+        return
+
+    # Check if any series' last value is in the top 25% of y-range
+    top_25_threshold = y_max - 0.25 * y_range
+    last_vals = [df[col].dropna().iloc[-1] for col in cols if len(df[col].dropna()) > 0]
+    if any(v >= top_25_threshold for v in last_vals):
+        # Extend upper bound by 15% to give legend room
+        new_y_max = y_max + 0.15 * y_range
+        fig.update_layout(yaxis=dict(range=[y_min, new_y_max]))
+
+
 def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
                     date_format, ylim=None, xlim=None, **kwargs):
     """plotly implementation of plot_ts."""
     import plotly.graph_objects as go
 
     sorted_cols = _sorted_cols_by_last_value(df, cols)
-    tickformat = date_format if date_format else _detect_plotly_tickformat(df)
+
+    if date_format:
+        xaxis_cfg = dict(type="date", tickformat=date_format)
+    else:
+        xaxis_cfg = dict(type="date", tickformatstops=_PLOTLY_TICKFORMATSTOPS)
 
     fig = go.Figure()
 
@@ -396,11 +458,15 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
 
     layout_kwargs = dict(
         template="pxts",
-        xaxis=dict(type="date", tickformat=tickformat),
+        xaxis=xaxis_cfg,
     )
     if title:
         layout_kwargs["title_text"] = title
     fig.update_layout(**layout_kwargs)
+
+    # Year annotation (ConciseDateFormatter offset equivalent): only when auto-formatting
+    if not date_format:
+        _add_plotly_year_annotation(fig, df)
 
     if subtitle:
         fig.add_annotation(
@@ -420,6 +486,7 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
 
     if ylim is not None:
         fig.update_layout(yaxis=dict(range=list(ylim)))
+    _extend_yaxis_for_legend(fig, df, cols, ylim)
     if xlim is not None:
         fig.update_xaxes(range=[str(pd.Timestamp(xlim[0])), str(pd.Timestamp(xlim[1]))])
 
@@ -572,8 +639,6 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
     # Apply template IMMEDIATELY after make_subplots (Pitfall 4)
     fig.update_layout(template="pxts")
 
-    tickformat = date_format if date_format else _detect_plotly_tickformat(df)
-
     for col in left:
         hovertemplate = f"<b>{col}</b><br>Date: %{{x}}<br>Value: %{{y:.4g}}<extra></extra>"
         fig.add_trace(
@@ -607,7 +672,13 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
     fig.update_yaxes(tickfont=dict(color=RIGHT_COLOR), secondary_y=True)
 
     # Set x-axis type=date (Pitfall 5: must be done via update_xaxes after traces)
-    fig.update_xaxes(type="date", tickformat=tickformat)
+    if date_format:
+        fig.update_xaxes(type="date", tickformat=date_format)
+    else:
+        fig.update_xaxes(type="date", tickformatstops=_PLOTLY_TICKFORMATSTOPS)
+
+    if not date_format:
+        _add_plotly_year_annotation(fig, df)
 
     if title:
         fig.update_layout(title_text=title)
