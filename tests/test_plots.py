@@ -195,10 +195,22 @@ class TestAdjustTextWarning:
 # ---------------------------------------------------------------------------
 
 class TestParameterTypeValidation:
-    def test_tsplot_hlines_wrong_type_raises(self, ts_df):
-        """tsplot(hlines=42.0) → ValueError mentioning 'hlines'."""
+    def test_hlines_scalar_float(self, ts_df):
+        """tsplot(hlines=42.0) → succeeds and returns a figure (scalar normalized to [42.0])."""
+        fig = tsplot(ts_df, hlines=42.0, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_hlines_scalar_int(self, ts_df):
+        """tsplot(hlines=0) → succeeds and returns a figure (int zero normalized to [0])."""
+        fig = tsplot(ts_df, hlines=0, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_hlines_bool_raises(self, ts_df):
+        """tsplot(hlines=True) → ValueError mentioning 'hlines' (bool excluded from scalar normalization)."""
         with pytest.raises(ValueError, match="hlines"):
-            tsplot(ts_df, hlines=42.0, backend="matplotlib")
+            tsplot(ts_df, hlines=True, backend="matplotlib")
 
     def test_tsplot_title_wrong_type_raises(self, ts_df):
         """tsplot(title=123) → ValueError mentioning 'title'."""
