@@ -12,6 +12,7 @@ Public API (all accessible via star import):
   pxtsValidationError            — exception class
   read_ts(path)                   — read CSV into validated DataFrame
   write_ts(df, path)              — write DataFrame to CSV
+  read_bdh(tickers, start, field='PX_LAST', end=None) — fetch Bloomberg BDH data
   get_backend()                   — return active backend name ('plotly' or 'matplotlib')
   IS_JUPYTER                      — bool, True if running in a Jupyter/IPython kernel
   tsplot(df, cols=None, ...)      — plot time series columns as line charts
@@ -42,7 +43,7 @@ if _pandas_version < _PANDAS_MIN:
 from pxts.exceptions import pxtsValidationError  # noqa: E402
 from pxts.core import validate_ts, set_tz, to_dense, infer_freq  # noqa: E402
 from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .ts accessor
-from pxts.io import read_ts, write_ts  # noqa: E402
+from pxts.io import read_ts, write_ts, read_bdh  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme  # noqa: E402
 from pxts.plots import tsplot, tsplot_dual  # noqa: E402
@@ -57,6 +58,7 @@ __all__ = [
     "pxtsValidationError",
     "read_ts",
     "write_ts",
+    "read_bdh",
     "get_backend",
     "IS_JUPYTER",
     "tsplot",
