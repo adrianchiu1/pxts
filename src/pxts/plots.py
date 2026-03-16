@@ -171,7 +171,6 @@ def _detect_plotly_tickformat(df) -> str:
 
     Edge case: single-row DataFrame (no diffs possible) → defaults to '%b %d'.
     """
-    import numpy as np
     if len(df) < 2:
         return "%b %d"
     diffs = pd.Series(df.index).diff().dropna()
