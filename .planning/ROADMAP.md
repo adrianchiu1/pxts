@@ -58,7 +58,11 @@ Plans:
   2. `_backend.py` module docstring explains that `IS_JUPYTER` is cached at import and what that means for reload scenarios
   3. `__init__.py` documents the `apply_theme()` global side-effect so users are not surprised when pxts changes their matplotlib style
   4. `_detect_plotly_tickformat` uses median index diff so sparse datasets select an appropriate tick granularity
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — __init__.py and _backend.py docstring fixes (DOC-01, DOC-02, DOC-03)
+- [ ] 03-02-PLAN.md — plots.py docstring fix and median-diff tick format algorithm (DOC-04, POL-01)
 
 ## Progress
 
@@ -69,4 +73,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Test Suite | 5/5 | Complete   | 2026-03-15 |
 | 2. Bug Fixes and Dependencies | 3/3 | Complete   | 2026-03-15 |
-| 3. Documentation and Polish | 0/? | Not started | - |
+| 3. Documentation and Polish | 0/2 | Not started | - |
