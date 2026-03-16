@@ -119,6 +119,7 @@ def _validate_axis_limit(value, name: str, is_date: bool = False) -> None:
 def _validate_plot_params(
     hlines, vlines, title, subtitle, date_format, caller: str,
     ylim=None, xlim=None, ylim_lhs=None, ylim_rhs=None,
+    annotations=None,
 ) -> None:
     """Validate parameter types for tsplot and tsplot_dual.
 
@@ -128,6 +129,7 @@ def _validate_plot_params(
     title, subtitle, date_format accept str or None.
     ylim, ylim_lhs, ylim_rhs: list or tuple of 2 numeric values, or None.
     xlim: list or tuple of 2 date-like values, or None.
+    annotations: list of dicts with "x" and "text" keys, or None.
 
     Raises ValueError with a clear message naming the parameter and expected type.
     """
@@ -151,6 +153,24 @@ def _validate_plot_params(
         raise ValueError(
             f"{caller}: date_format must be str or None, got {type(date_format).__name__}"
         )
+    if annotations is not None:
+        if not isinstance(annotations, list):
+            raise ValueError(
+                f"{caller}: annotations must be list or None, got {type(annotations).__name__}"
+            )
+        for i, ann in enumerate(annotations):
+            if not isinstance(ann, dict):
+                raise ValueError(
+                    f"{caller}: annotations[{i}] must be a dict, got {type(ann).__name__}"
+                )
+            if "x" not in ann:
+                raise ValueError(
+                    f"{caller}: annotations[{i}] missing required key 'x'"
+                )
+            if "text" not in ann:
+                raise ValueError(
+                    f"{caller}: annotations[{i}] missing required key 'text'"
+                )
     _validate_axis_limit(ylim, "ylim")
     _validate_axis_limit(xlim, "xlim", is_date=True)
     _validate_axis_limit(ylim_lhs, "ylim_lhs")
@@ -511,6 +531,9 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
     if vlines:
         _draw_vlines_plotly(fig, vlines)
 
+    if annotations:
+        _apply_plotly_annotations(fig, annotations, df, cols)
+
     if ylim is not None:
         fig.update_layout(yaxis=dict(range=list(ylim)))
     _extend_yaxis_for_legend(fig, df, cols, ylim)
@@ -519,7 +542,6 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
 
     # labels=True on plotly: hover-only — traces already have hovertemplate set
     # No text traces added per must_haves spec
-    # annotations parameter accepted here but processed in Plan 03
 
     return fig
 
@@ -566,6 +588,105 @@ def _draw_vlines_plotly(fig, vlines, secondary_y: bool = False) -> None:
                 font=dict(size=DEFAULT_FONT_SIZE - 2),
                 yanchor="top",
             )
+
+
+def _apply_plotly_annotations(fig, annotations, df, cols, secondary_y_cols=None) -> None:
+    """Add data-point annotations to a Plotly figure.
+
+    Each annotation dict must have "x" and "text" keys. "y" is optional — if absent,
+    y is auto-looked up from the nearest row to x in df[col]. "col" is optional for
+    single-axis charts but required for dual-axis charts (secondary_y_cols provided).
+
+    Args:
+        fig: Plotly figure to annotate.
+        annotations: list of dicts with keys "x", "text", optionally "y" and "col".
+        df: DataFrame used for y auto-lookup (must have DatetimeIndex).
+        cols: list of column names available for y lookup.
+        secondary_y_cols: if not None, list of column names on secondary y-axis;
+            used to set yref="y2" for those annotations.
+    """
+    if not annotations:
+        return
+    for ann in annotations:
+        x_val = ann["x"]
+        text = ann["text"]
+        x_ts = pd.Timestamp(x_val)
+
+        # Determine which column to use for y-lookup
+        col = ann.get("col", None)
+        if col is None:
+            col = cols[0]  # default to first column for single-axis charts
+
+        # y auto-lookup: find nearest row index to x_ts
+        if "y" in ann:
+            y_val = ann["y"]
+        else:
+            # Find index of nearest timestamp
+            if col in df.columns:
+                idx = (df.index - x_ts).to_pytimedelta()
+                idx = [abs(d) for d in idx]
+                nearest_pos = idx.index(min(idx))
+                y_val = df[col].iloc[nearest_pos]
+            else:
+                y_val = 0
+
+        # Determine yref based on whether col is on secondary axis
+        if secondary_y_cols and col in secondary_y_cols:
+            yref = "y2"
+        else:
+            yref = "y"
+
+        fig.add_annotation(
+            x=str(x_ts),
+            xref="x",
+            y=y_val,
+            yref=yref,
+            text=str(text),
+            showarrow=False,
+            font=dict(size=DEFAULT_FONT_SIZE - 1),
+            yanchor="bottom",
+            bgcolor="rgba(255,255,255,0.7)",
+        )
+
+
+def add_annotation(fig, x, y=None, text: str = '', col: str = None) -> None:
+    """Add a single annotation to an existing Plotly figure.
+
+    Standalone helper for post-call annotation. Useful when you want to annotate
+    a figure returned by tsplot() or tsplot_dual() without rebuilding it.
+
+    Args:
+        fig: plotly.graph_objects.Figure to annotate.
+        x: x-position as a date-like value (str, pd.Timestamp, datetime).
+        y: y-position. If None, the annotation is placed at y=0.5 with yref="paper"
+           (you should provide y for accurate positioning).
+        text: annotation label text. Defaults to '' if not provided.
+        col: column name hint — not used for positioning here (caller is responsible
+           for passing the correct y value), but included for API symmetry with
+           the annotations= dict format.
+
+    Returns:
+        None. Modifies fig in place.
+    """
+    x_str = str(pd.Timestamp(x))
+    if y is None:
+        yref = "paper"
+        y_val = 0.5
+    else:
+        yref = "y"
+        y_val = y
+
+    fig.add_annotation(
+        x=x_str,
+        xref="x",
+        y=y_val,
+        yref=yref,
+        text=str(text),
+        showarrow=False,
+        font=dict(size=DEFAULT_FONT_SIZE - 1),
+        yanchor="bottom",
+        bgcolor="rgba(255,255,255,0.7)",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -765,14 +886,16 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
     if vlines:
         _draw_vlines_plotly(fig, vlines)
 
+    if annotations:
+        _apply_plotly_annotations(fig, annotations, df, left + right,
+                                   secondary_y_cols=right)
+
     if ylim_lhs is not None:
         fig.update_layout(yaxis=dict(range=list(ylim_lhs)))
     if ylim_rhs is not None:
         fig.update_layout(yaxis2=dict(range=list(ylim_rhs)))
     if xlim is not None:
         fig.update_xaxes(range=[str(pd.Timestamp(xlim[0])), str(pd.Timestamp(xlim[1]))])
-
-    # annotations parameter accepted but processed in Plan 03
 
     return fig
 
@@ -819,7 +942,7 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
     hlines = _normalize_lines(hlines, "hlines")
     vlines = _normalize_lines(vlines, "vlines")
     _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot",
-                          ylim=ylim, xlim=xlim)
+                          ylim=ylim, xlim=xlim, annotations=annotations)
     if cols is None:
         cols = list(df.columns)
     _validate_cols(df, cols)
@@ -881,7 +1004,8 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
     hlines = _normalize_lines(hlines, "hlines")
     vlines = _normalize_lines(vlines, "vlines")
     _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot_dual",
-                          ylim=None, xlim=xlim, ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs)
+                          ylim=None, xlim=xlim, ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs,
+                          annotations=annotations)
     _validate_cols(df, left, param_name="left")
     _validate_cols(df, right, param_name="right")
 
