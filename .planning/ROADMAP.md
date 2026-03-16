@@ -13,8 +13,8 @@ The library works but is unverified and has several silent failure modes. This m
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Test Suite** - Establish pytest-runnable unit tests for every module (completed 2026-03-15)
-- [x] **Phase 2: Bug Fixes and Dependencies** - Fix all silent bugs and declare missing runtime dependencies (completed 2026-03-15)
-- [x] **Phase 3: Documentation and Polish** - Correct misleading docstrings and improve tick format selection (completed 2026-03-16)
+- [x] **Phase 2: Bug Fixes and Dependencies** - Fix all silent bugs and declare missing runtime dependencies (completed 2026-03-15)
+- [x] **Phase 3: Documentation and Polish** - Correct misleading docstrings and improve tick format selection (completed 2026-03-16)
 - [x] **Phase 4: Process Closure and Cleanup** - Write missing VERIFICATION.md files, fix FIX-03 requirement wording, and remove dead code identified by audit (completed 2026-03-16)
 
 ## Phase Details
@@ -76,3 +76,14 @@ Phases execute in numeric order: 1 → 2 → 3
 | 2. Bug Fixes and Dependencies | 3/3 | Complete   | 2026-03-15 |
 | 3. Documentation and Polish | 2/2 | Complete    | 2026-03-16 |
 | 4. Process Closure and Cleanup | 3/3 | Complete   | 2026-03-16 |
+
+### Phase 5: Bloomberg BDH historical data integration
+
+**Goal:** Add read_bdh() to pxts for fetching Bloomberg historical time series data via pdblp, returning pxts-standard validated DataFrames ready for transform and plot functions
+**Requirements**: TBD
+**Depends on:** Phase 4
+**Plans:** 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — read_bdh() implementation in io.py, wiring into __init__.py and TsAccessor, bloomberg optional dep in pyproject.toml
+- [ ] 05-02-PLAN.md — Unit tests for read_bdh() with mocked pdblp (no Bloomberg terminal required)
