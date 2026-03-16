@@ -38,7 +38,7 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 Phase: 5 of 5 (Bloomberg BDH Historical Data Integration)
 Plan: 2 of 2 in current phase
 Status: Completed
-Last activity: 2026-03-16 - Completed 05-02: 8 unit tests for read_bdh() with patch.dict(sys.modules) mock pattern for lazy pdblp import
+Last activity: 2026-03-16 - Completed quick task 5: commit manual changes to core.py and io.py
 
 Progress: [██████████] ~100%
 
