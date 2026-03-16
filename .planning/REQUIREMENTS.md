@@ -9,25 +9,25 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 ### Testing
 
-- [x] **TEST-01**: `tests/` directory exists with pytest-runnable unit tests
-- [x] **TEST-02**: `test_core.py` covers `validate_ts`, `set_tz`, `to_dense`, `infer_freq` — including edge cases
-- [x] **TEST-03**: `test_io.py` covers `read_ts` and `write_ts` — including ambiguous date format paths
-- [x] **TEST-04**: `test_plots.py` covers `tsplot` and `tsplot_dual` for both backends (mocked)
-- [x] **TEST-05**: `test_accessor.py` covers `.ts` accessor methods delegate correctly
-- [x] **TEST-06**: `test_theme.py` covers `apply_theme` without side-effects on other tests
+- [ ] **TEST-01**: `tests/` directory exists with pytest-runnable unit tests
+- [ ] **TEST-02**: `test_core.py` covers `validate_ts`, `set_tz`, `to_dense`, `infer_freq` — including edge cases
+- [ ] **TEST-03**: `test_io.py` covers `read_ts` and `write_ts` — including ambiguous date format paths
+- [ ] **TEST-04**: `test_plots.py` covers `tsplot` and `tsplot_dual` for both backends (mocked)
+- [ ] **TEST-05**: `test_accessor.py` covers `.ts` accessor methods delegate correctly
+- [ ] **TEST-06**: `test_theme.py` covers `apply_theme` without side-effects on other tests
 
 ### Dependencies
 
-- [x] **DEP-01**: `cycler` declared as explicit runtime dependency in `pyproject.toml`
-- [x] **DEP-02**: `adjustText` documented as optional install with clear user-facing message when absent
+- [ ] **DEP-01**: `cycler` declared as explicit runtime dependency in `pyproject.toml`
+- [ ] **DEP-02**: `adjustText` documented as optional install with clear user-facing message when absent
 
 ### Bug Fixes
 
-- [x] **FIX-01**: `_detect_date_format` emits `UserWarning` when slash-delimited date is ambiguous (both parts ≤ 12) instead of silently defaulting to US format
-- [x] **FIX-02**: `set_tz` uses proper timezone identity comparison (not string equality) to avoid spurious conversions between semantically equivalent timezones
-- [x] **FIX-03**: `infer_freq` emits `UserWarning` when a 1-day timedelta is detected, noting it cannot distinguish `'B'` from `'D'`
-- [x] **FIX-04**: `to_dense` normalizes the `freq` alias before the no-op string comparison (so `'1D'` and `'D'` are treated as equivalent)
-- [x] **FIX-05**: `tsplot` and `tsplot_dual` validate `hlines`, `vlines`, `title`, `subtitle`, and `date_format` parameter types with clear error messages
+- [ ] **FIX-01**: `_detect_date_format` emits `UserWarning` when slash-delimited date is ambiguous (both parts ≤ 12) instead of silently defaulting to US format
+- [ ] **FIX-02**: `set_tz` uses proper timezone identity comparison (not string equality) to avoid spurious conversions between semantically equivalent timezones
+- [ ] **FIX-03**: `infer_freq` resolves B-vs-D ambiguity via weekday detection — sequences with weekends return `'D'`, sequences without return `'B'`
+- [ ] **FIX-04**: `to_dense` normalizes the `freq` alias before the no-op string comparison (so `'1D'` and `'D'` are treated as equivalent)
+- [ ] **FIX-05**: `tsplot` and `tsplot_dual` validate `hlines`, `vlines`, `title`, `subtitle`, and `date_format` parameter types with clear error messages
 
 ### Documentation Fixes
 
@@ -64,19 +64,19 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TEST-01 | Phase 1 | Complete |
-| TEST-02 | Phase 1 | Complete |
-| TEST-03 | Phase 1 | Complete |
-| TEST-04 | Phase 1 | Complete |
-| TEST-05 | Phase 1 | Complete |
-| TEST-06 | Phase 1 | Complete |
-| DEP-01 | Phase 2 | Complete |
-| DEP-02 | Phase 2 | Complete |
-| FIX-01 | Phase 2 | Complete |
-| FIX-02 | Phase 2 | Complete |
-| FIX-03 | Phase 2 | Complete |
-| FIX-04 | Phase 2 | Complete |
-| FIX-05 | Phase 2 | Complete |
+| TEST-01 | Phase 4 | Pending |
+| TEST-02 | Phase 4 | Pending |
+| TEST-03 | Phase 4 | Pending |
+| TEST-04 | Phase 4 | Pending |
+| TEST-05 | Phase 4 | Pending |
+| TEST-06 | Phase 4 | Pending |
+| DEP-01 | Phase 4 | Pending |
+| DEP-02 | Phase 4 | Pending |
+| FIX-01 | Phase 4 | Pending |
+| FIX-02 | Phase 4 | Pending |
+| FIX-03 | Phase 4 | Pending |
+| FIX-04 | Phase 4 | Pending |
+| FIX-05 | Phase 4 | Pending |
 | DOC-01 | Phase 3 | Complete |
 | DOC-02 | Phase 3 | Complete |
 | DOC-03 | Phase 3 | Complete |
@@ -90,4 +90,4 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-16 — gap closure phases assigned after v0.1 audit*
