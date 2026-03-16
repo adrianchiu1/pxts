@@ -9,12 +9,12 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 ### Testing
 
-- [ ] **TEST-01**: `tests/` directory exists with pytest-runnable unit tests
-- [ ] **TEST-02**: `test_core.py` covers `validate_ts`, `set_tz`, `to_dense`, `infer_freq` — including edge cases
-- [ ] **TEST-03**: `test_io.py` covers `read_ts` and `write_ts` — including ambiguous date format paths
-- [ ] **TEST-04**: `test_plots.py` covers `tsplot` and `tsplot_dual` for both backends (mocked)
-- [ ] **TEST-05**: `test_accessor.py` covers `.ts` accessor methods delegate correctly
-- [ ] **TEST-06**: `test_theme.py` covers `apply_theme` without side-effects on other tests
+- [x] **TEST-01**: `tests/` directory exists with pytest-runnable unit tests
+- [x] **TEST-02**: `test_core.py` covers `validate_ts`, `set_tz`, `to_dense`, `infer_freq` — including edge cases
+- [x] **TEST-03**: `test_io.py` covers `read_ts` and `write_ts` — including ambiguous date format paths
+- [x] **TEST-04**: `test_plots.py` covers `tsplot` and `tsplot_dual` for both backends (mocked)
+- [x] **TEST-05**: `test_accessor.py` covers `.ts` accessor methods delegate correctly
+- [x] **TEST-06**: `test_theme.py` covers `apply_theme` without side-effects on other tests
 
 ### Dependencies
 
@@ -64,12 +64,12 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TEST-01 | Phase 4 | Pending |
-| TEST-02 | Phase 4 | Pending |
-| TEST-03 | Phase 4 | Pending |
-| TEST-04 | Phase 4 | Pending |
-| TEST-05 | Phase 4 | Pending |
-| TEST-06 | Phase 4 | Pending |
+| TEST-01 | Phase 4 | Complete |
+| TEST-02 | Phase 4 | Complete |
+| TEST-03 | Phase 4 | Complete |
+| TEST-04 | Phase 4 | Complete |
+| TEST-05 | Phase 4 | Complete |
+| TEST-06 | Phase 4 | Complete |
 | DEP-01 | Phase 4 | Pending |
 | DEP-02 | Phase 4 | Pending |
 | FIX-01 | Phase 4 | Pending |
