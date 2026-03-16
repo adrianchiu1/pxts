@@ -2,6 +2,19 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
+status: unknown
+last_updated: "2026-03-16T15:37:11.135Z"
+progress:
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 14
+  completed_plans: 14
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
 status: in-progress
 last_updated: "2026-03-16T08:28:50Z"
 progress:
@@ -23,9 +36,9 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 6 of 6 (Plotly Rendering Fixes — Date Axis Autoformatting and Legend)
-Plan: 1 of 1 in current phase
+Plan: 2 of 2 in current phase
 Status: Completed
-Last activity: 2026-03-16 - Completed 06-01: Plotly tickformatstops + showlegend + year annotation
+Last activity: 2026-03-16 - Completed 06-02: Plotly Phase 6 regression tests (56 tests pass)
 
 Progress: [██████████] ~100%
 
@@ -58,6 +71,7 @@ Progress: [██████████] ~100%
 | Phase 05-bloomberg-bdh-historical-data-integration P01 | 2 | 2 tasks | 4 files |
 | Phase 05-bloomberg-bdh-historical-data-integration P02 | 2 | 1 tasks | 1 files |
 | Phase 06-plotly-rendering-fixes P01 | 6 | 2 tasks | 3 files |
+| Phase 06-plotly-rendering-fixes PP02 | 5 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -103,6 +117,7 @@ Recent decisions affecting current work:
 - [06-01]: tickformatstops replaces _detect_plotly_tickformat — zoom-responsive date labels instead of static format detection
 - [06-01]: _extend_yaxis_for_legend not called in _plot_ts_dual_plotly — dual-axis charts have independent left/right y ranges
 - [06-01]: Tests for deleted _detect_plotly_tickformat replaced with TestPlotlyTickformatstops covering new constant and integration
+- [Phase 06-02]: showlegend assertion checks fig.layout.template.layout.showlegend: pxts sets showlegend in Plotly template, not top-level fig.layout — template values must be accessed via the template object
 
 ### Roadmap Evolution
 
@@ -132,5 +147,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Completed 06-01 — Plotly tickformatstops + showlegend + year annotation; 48 tests pass
+Stopped at: Completed 06-02 — Plotly Phase 6 regression tests; 56 tests pass
 Resume file: None

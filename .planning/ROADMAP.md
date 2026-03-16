@@ -77,7 +77,7 @@ Phases execute in numeric order: 1 → 2 → 3
 | 3. Documentation and Polish | 2/2 | Complete    | 2026-03-16 |
 | 4. Process Closure and Cleanup | 3/3 | Complete   | 2026-03-16 |
 | 5. Bloomberg BDH Integration | 2/2 | Complete   | 2026-03-16 |
-| 6. Plotly Rendering Fixes | 1/1 | Complete   | 2026-03-16 |
+| 6. Plotly Rendering Fixes | 2/2 | Complete   | 2026-03-16 |
 
 ### Phase 5: Bloomberg BDH historical data integration
 
@@ -95,7 +95,7 @@ Plans:
 **Goal:** Fix two Plotly rendering defects in tsplot and tsplot_dual: (1) replace static date tickformat with zoom-responsive tickformatstops; (2) add showlegend=True to the pxts template and add legend overlap avoidance.
 **Requirements**: PLOTLY-01, PLOTLY-02
 **Depends on:** Phase 5
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 06-01-PLAN.md — Remove _detect_plotly_tickformat, add tickformatstops (4 tiers), showlegend=True in template, year annotation, legend overlap headroom (plots.py + theme.py) (completed 2026-03-16)
