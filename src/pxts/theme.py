@@ -75,7 +75,12 @@ def _apply_plotly_theme() -> None:
                     gridcolor=GRID_COLOR,
                     zeroline=False,
                 ),
-                legend=dict(bgcolor="rgba(255,255,255,0.8)"),
+                legend=dict(
+                    bgcolor="rgba(255,255,255,0.8)",
+                    xanchor="right",
+                    x=1,
+                ),
+                showlegend=True,
             )
         )
 
