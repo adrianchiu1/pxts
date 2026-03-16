@@ -3,6 +3,19 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
+last_updated: "2026-03-16T17:28:16.055Z"
+progress:
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 1
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
+status: unknown
 last_updated: "2026-03-16T16:18:37.462Z"
 progress:
   total_phases: 6
@@ -85,6 +98,7 @@ Progress: [██████████] ~100%
 | Phase 05-bloomberg-bdh-historical-data-integration P02 | 2 | 1 tasks | 1 files |
 | Phase 06-plotly-rendering-fixes P01 | 6 | 2 tasks | 3 files |
 | Phase 06-plotly-rendering-fixes PP02 | 5 | 1 tasks | 1 files |
+| Phase 07-interactive-plotly-time-series-charts P01 | 4 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -131,6 +145,8 @@ Recent decisions affecting current work:
 - [06-01]: _extend_yaxis_for_legend not called in _plot_ts_dual_plotly — dual-axis charts have independent left/right y ranges
 - [06-01]: Tests for deleted _detect_plotly_tickformat replaced with TestPlotlyTickformatstops covering new constant and integration
 - [Phase 06-02]: showlegend assertion checks fig.layout.template.layout.showlegend: pxts sets showlegend in Plotly template, not top-level fig.layout — template values must be accessed via the template object
+- [Phase 07-01]: margin=dict(l=60, r=40, t=50, b=50) in pxts Plotly template: accommodates tick labels, title, and axis labels while eliminating excessive whitespace
+- [Phase 07-01]: Dark theme constants (DARK_BACKGROUND_COLOR, DARK_PLOT_COLOR, DARK_GRID_COLOR, DARK_FONT_COLOR) defined in theme.py as single source of truth for Plans 02/03 to import
 
 ### Roadmap Evolution
 
