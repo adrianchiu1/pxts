@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 02-bug-fixes-and-dependencies
 source: [02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md]
 started: 2026-03-15T08:00:00Z
@@ -83,11 +83,11 @@ skipped: 0
 ## Gaps
 
 - truth: "adjustText missing UserWarning fires exactly once per session when labels=True and adjustText is absent"
-  status: failed
+  status: false_positive
   reason: "User reported: I got 2"
   severity: major
   test: 8
-  root_cause: ""
+  root_cause: "Not reproducible. Automated pytest test passes. Manual reproduction (sys.modules['adjustText']=None + catch_warnings record=True + simplefilter('always') + two tsplot calls) yields exactly 1 warning. Flag mechanism is correct. Likely caused by testing without resetting _ADJUSTTEXT_WARNED between REPL calls or using a different test setup than presented."
   artifacts: []
   missing: []
   debug_session: ""
