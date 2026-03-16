@@ -10,6 +10,8 @@ or the active backend returned by get_backend().
 
 import warnings
 
+import pandas as pd
+
 from pxts._backend import get_backend
 from pxts.core import validate_ts
 from pxts.theme import (
@@ -74,8 +76,49 @@ def _validate_cols(df, cols, param_name: str = "cols") -> None:
         )
 
 
+def _validate_axis_limit(value, name: str, is_date: bool = False) -> None:
+    """Validate an axis limit parameter (ylim, xlim, ylim_lhs, ylim_rhs).
+
+    Rules:
+    - None: valid, no limit applied.
+    - Must be list or tuple of exactly 2 elements.
+    - If is_date=True, each element must be convertible via pd.Timestamp.
+
+    Raises:
+        ValueError: with the parameter name in the message.
+    """
+    if value is None:
+        return
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(
+            f"{name} must be list or tuple of 2 values, got {type(value).__name__}"
+        )
+    if len(value) != 2:
+        raise ValueError(
+            f"{name} must have exactly 2 elements, got {len(value)}"
+        )
+    if is_date:
+        import datetime
+        for element in value:
+            # Reject plain int/float — pd.Timestamp accepts them as nanoseconds,
+            # but they are not meaningful date-like user inputs.
+            if isinstance(element, bool) or isinstance(element, (int, float)):
+                raise ValueError(
+                    f"{name} values must be date-like (e.g., pd.Timestamp, str date), "
+                    f"got {type(element).__name__}"
+                )
+            try:
+                pd.Timestamp(element)
+            except Exception:
+                raise ValueError(
+                    f"{name} values must be date-like (e.g., pd.Timestamp, str date), "
+                    f"got {type(element).__name__}"
+                )
+
+
 def _validate_plot_params(
-    hlines, vlines, title, subtitle, date_format, caller: str
+    hlines, vlines, title, subtitle, date_format, caller: str,
+    ylim=None, xlim=None, ylim_lhs=None, ylim_rhs=None,
 ) -> None:
     """Validate parameter types for tsplot and tsplot_dual.
 
@@ -83,6 +126,8 @@ def _validate_plot_params(
     Scalar int/float values are normalized upstream by _normalize_lines before reaching
     this function, so they will already be wrapped in a list when validated here.
     title, subtitle, date_format accept str or None.
+    ylim, ylim_lhs, ylim_rhs: list or tuple of 2 numeric values, or None.
+    xlim: list or tuple of 2 date-like values, or None.
 
     Raises ValueError with a clear message naming the parameter and expected type.
     """
@@ -106,6 +151,10 @@ def _validate_plot_params(
         raise ValueError(
             f"{caller}: date_format must be str or None, got {type(date_format).__name__}"
         )
+    _validate_axis_limit(ylim, "ylim")
+    _validate_axis_limit(xlim, "xlim", is_date=True)
+    _validate_axis_limit(ylim_lhs, "ylim_lhs")
+    _validate_axis_limit(ylim_rhs, "ylim_rhs")
 
 
 def _detect_plotly_tickformat(df) -> str:
@@ -250,7 +299,7 @@ def _add_mpl_end_labels(ax, df, cols, lines) -> None:
 
 
 def _plot_ts_mpl(df, cols, title, subtitle, labels, hlines, vlines,
-                 date_format, **kwargs):
+                 date_format, ylim=None, xlim=None, **kwargs):
     """matplotlib implementation of plot_ts."""
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
@@ -296,11 +345,17 @@ def _plot_ts_mpl(df, cols, title, subtitle, labels, hlines, vlines,
         _add_mpl_end_labels(ax, df, cols, lines)
 
     fig.tight_layout()
+
+    if ylim is not None:
+        ax.set_ylim(ylim[0], ylim[1])
+    if xlim is not None:
+        ax.set_xlim(pd.Timestamp(xlim[0]), pd.Timestamp(xlim[1]))
+
     return fig
 
 
 def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
-                    date_format, **kwargs):
+                    date_format, ylim=None, xlim=None, **kwargs):
     """plotly implementation of plot_ts."""
     import plotly.graph_objects as go
 
@@ -342,6 +397,11 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
         _draw_hlines_plotly(fig, hlines)
     if vlines:
         _draw_vlines_plotly(fig, vlines)
+
+    if ylim is not None:
+        fig.update_layout(yaxis=dict(range=list(ylim)))
+    if xlim is not None:
+        fig.update_xaxes(range=[str(pd.Timestamp(xlim[0])), str(pd.Timestamp(xlim[1]))])
 
     # labels=True on plotly: hover-only — traces already have hovertemplate set
     # No text traces added per must_haves spec
@@ -398,7 +458,7 @@ def _draw_vlines_plotly(fig, vlines, secondary_y: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 def _plot_ts_dual_mpl(df, left, right, title, subtitle, labels, hlines, vlines,
-                      date_format, **kwargs):
+                      date_format, ylim_lhs=None, ylim_rhs=None, xlim=None, **kwargs):
     """matplotlib implementation of plot_ts_dual."""
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
@@ -466,6 +526,14 @@ def _plot_ts_dual_mpl(df, left, right, title, subtitle, labels, hlines, vlines,
         _add_mpl_end_labels(ax2, df, right, right_lines)
 
     fig.tight_layout()
+
+    if ylim_lhs is not None:
+        ax1.set_ylim(ylim_lhs[0], ylim_lhs[1])
+    if ylim_rhs is not None:
+        ax2.set_ylim(ylim_rhs[0], ylim_rhs[1])
+    if xlim is not None:
+        ax1.set_xlim(pd.Timestamp(xlim[0]), pd.Timestamp(xlim[1]))
+
     return fig
 
 
@@ -474,7 +542,7 @@ def _plot_ts_dual_mpl(df, left, right, title, subtitle, labels, hlines, vlines,
 # ---------------------------------------------------------------------------
 
 def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vlines,
-                         date_format, **kwargs):
+                         date_format, ylim_lhs=None, ylim_rhs=None, xlim=None, **kwargs):
     """plotly implementation of plot_ts_dual."""
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
@@ -539,6 +607,13 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
     if vlines:
         _draw_vlines_plotly(fig, vlines)
 
+    if ylim_lhs is not None:
+        fig.update_layout(yaxis=dict(range=list(ylim_lhs)))
+    if ylim_rhs is not None:
+        fig.update_layout(yaxis2=dict(range=list(ylim_rhs)))
+    if xlim is not None:
+        fig.update_xaxes(range=[str(pd.Timestamp(xlim[0])), str(pd.Timestamp(xlim[1]))])
+
     return fig
 
 
@@ -548,7 +623,7 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
 
 def tsplot(df, cols=None, title: str = "", subtitle: str = "",
            labels: bool = False, hlines=None, vlines=None,
-           date_format=None, backend=None, **kwargs):
+           date_format=None, ylim=None, xlim=None, backend=None, **kwargs):
     """Plot one or more time series columns from a DataFrame as line charts.
 
     Args:
@@ -561,6 +636,8 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
         hlines: horizontal reference lines. List[float] or Dict[str, float].
         vlines: vertical reference lines. List[timestamp] or Dict[str, timestamp].
         date_format: custom date format string (overrides auto-detection).
+        ylim: y-axis limits as [lo, hi] or (lo, hi), or None for default.
+        xlim: x-axis limits as [date1, date2] (date-like), or None for default.
         backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
         **kwargs: forwarded to the underlying plot call (e.g., linewidth, alpha).
 
@@ -569,12 +646,14 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
 
     Raises:
         pxtsValidationError: if df does not have a DatetimeIndex.
-        ValueError: if any value in cols is not in df.columns.
+        ValueError: if any value in cols is not in df.columns, or if axis
+            limit parameters have invalid types/lengths.
     """
     validate_ts(df)
     hlines = _normalize_lines(hlines, "hlines")
     vlines = _normalize_lines(vlines, "vlines")
-    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot")
+    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot",
+                          ylim=ylim, xlim=xlim)
     if cols is None:
         cols = list(df.columns)
     _validate_cols(df, cols)
@@ -584,15 +663,16 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
 
     if backend == "matplotlib":
         return _plot_ts_mpl(df, cols, title, subtitle, labels, hlines, vlines,
-                            date_format, **kwargs)
+                            date_format, ylim=ylim, xlim=xlim, **kwargs)
     else:
         return _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
-                               date_format, **kwargs)
+                               date_format, ylim=ylim, xlim=xlim, **kwargs)
 
 
 def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
                 labels: bool = False, hlines=None, vlines=None,
-                date_format=None, backend=None, **kwargs):
+                date_format=None, ylim_lhs=None, ylim_rhs=None, xlim=None,
+                backend=None, **kwargs):
     """Plot time series with two y-axes (left and right).
 
     Args:
@@ -605,6 +685,9 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
         hlines: horizontal reference lines. List[float] or Dict[str, float].
         vlines: vertical reference lines. List[timestamp] or Dict[str, timestamp].
         date_format: custom date format string.
+        ylim_lhs: y-axis limits for the left (primary) axis as [lo, hi], or None.
+        ylim_rhs: y-axis limits for the right (secondary) axis as [lo, hi], or None.
+        xlim: x-axis limits as [date1, date2] (date-like), or None.
         backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
         **kwargs: forwarded to the underlying plot call.
 
@@ -613,12 +696,14 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
 
     Raises:
         pxtsValidationError: if df does not have a DatetimeIndex.
-        ValueError: if any value in left or right is not in df.columns.
+        ValueError: if any value in left or right is not in df.columns, or if
+            axis limit parameters have invalid types/lengths.
     """
     validate_ts(df)
     hlines = _normalize_lines(hlines, "hlines")
     vlines = _normalize_lines(vlines, "vlines")
-    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot_dual")
+    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot_dual",
+                          ylim=None, xlim=xlim, ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs)
     _validate_cols(df, left, param_name="left")
     _validate_cols(df, right, param_name="right")
 
@@ -627,7 +712,11 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
 
     if backend == "matplotlib":
         return _plot_ts_dual_mpl(df, left, right, title, subtitle, labels,
-                                 hlines, vlines, date_format, **kwargs)
+                                 hlines, vlines, date_format,
+                                 ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs, xlim=xlim,
+                                 **kwargs)
     else:
         return _plot_ts_dual_plotly(df, left, right, title, subtitle, labels,
-                                    hlines, vlines, date_format, **kwargs)
+                                    hlines, vlines, date_format,
+                                    ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs, xlim=xlim,
+                                    **kwargs)

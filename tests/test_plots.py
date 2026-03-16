@@ -249,3 +249,108 @@ class TestParameterTypeValidation:
         """tsplot(date_format=42) → ValueError mentioning 'date_format'."""
         with pytest.raises(ValueError, match="date_format"):
             tsplot(ts_df, date_format=42, backend="matplotlib")
+
+
+# ---------------------------------------------------------------------------
+# QUICK-4: ylim / xlim / ylim_lhs / ylim_rhs axis limit parameters
+# ---------------------------------------------------------------------------
+
+class TestAxisLimits:
+    # --- tsplot ylim/xlim matplotlib ---
+    def test_tsplot_ylim_list_mpl(self, ts_df):
+        """tsplot(ylim=[0,10], backend='matplotlib') returns Figure with y-axis restricted."""
+        fig = tsplot(ts_df, ylim=[0, 10], backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        ax = fig.axes[0]
+        lo, hi = ax.get_ylim()
+        assert lo == pytest.approx(0)
+        assert hi == pytest.approx(10)
+        plt.close(fig)
+
+    def test_tsplot_ylim_tuple_mpl(self, ts_df):
+        """tsplot(ylim=(0,10)) tuple also accepted."""
+        fig = tsplot(ts_df, ylim=(0, 10), backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_xlim_mpl(self, ts_df):
+        """tsplot(xlim=[date1, date2], backend='matplotlib') returns Figure."""
+        fig = tsplot(
+            ts_df,
+            xlim=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")],
+            backend="matplotlib",
+        )
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_ylim_none_mpl(self, ts_df):
+        """tsplot(ylim=None) returns Figure without error (default behaviour)."""
+        fig = tsplot(ts_df, ylim=None, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    # --- tsplot ylim/xlim plotly ---
+    def test_tsplot_ylim_plotly(self, ts_df):
+        """tsplot(ylim=[0,10], backend='plotly') returns Figure with yaxis.range."""
+        fig = tsplot(ts_df, ylim=[0, 10], backend="plotly")
+        assert isinstance(fig, go.Figure)
+        assert list(fig.layout.yaxis.range) == [0, 10]
+
+    def test_tsplot_xlim_plotly(self, ts_df):
+        """tsplot(xlim=[date1, date2], backend='plotly') returns plotly Figure."""
+        fig = tsplot(
+            ts_df,
+            xlim=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")],
+            backend="plotly",
+        )
+        assert isinstance(fig, go.Figure)
+
+    # --- tsplot_dual ylim_lhs / ylim_rhs / xlim ---
+    def test_tsplot_dual_ylim_lhs_mpl(self, ts_df):
+        """tsplot_dual(ylim_lhs=[0,5]) returns Figure."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"], ylim_lhs=[0, 5], backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_dual_ylim_rhs_mpl(self, ts_df):
+        """tsplot_dual(ylim_rhs=[0,5]) returns Figure."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"], ylim_rhs=[0, 5], backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_dual_xlim_mpl(self, ts_df):
+        """tsplot_dual(xlim=[date1, date2]) returns Figure."""
+        fig = tsplot_dual(
+            ts_df,
+            left=["A"], right=["B"],
+            xlim=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")],
+            backend="matplotlib",
+        )
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_tsplot_dual_ylim_lhs_plotly(self, ts_df):
+        """tsplot_dual(ylim_lhs=[0,5], backend='plotly') returns go.Figure."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"], ylim_lhs=[0, 5], backend="plotly")
+        assert isinstance(fig, go.Figure)
+
+    # --- validation errors ---
+    def test_tsplot_ylim_wrong_type_raises(self, ts_df):
+        """tsplot(ylim='bad') raises ValueError mentioning 'ylim'."""
+        with pytest.raises(ValueError, match="ylim"):
+            tsplot(ts_df, ylim="bad", backend="matplotlib")
+
+    def test_tsplot_ylim_wrong_length_raises(self, ts_df):
+        """tsplot(ylim=[1,2,3]) raises ValueError mentioning 'ylim'."""
+        with pytest.raises(ValueError, match="ylim"):
+            tsplot(ts_df, ylim=[1, 2, 3], backend="matplotlib")
+
+    def test_tsplot_xlim_not_date_raises(self, ts_df):
+        """tsplot(xlim=[1, 2]) raises ValueError mentioning 'xlim' (not date-like)."""
+        with pytest.raises(ValueError, match="xlim"):
+            tsplot(ts_df, xlim=[1, 2], backend="matplotlib")
+
+    def test_tsplot_dual_ylim_lhs_wrong_type_raises(self, ts_df):
+        """tsplot_dual(ylim_lhs=42) raises ValueError mentioning 'ylim_lhs'."""
+        with pytest.raises(ValueError, match="ylim_lhs"):
+            tsplot_dual(ts_df, left=["A"], right=["B"], ylim_lhs=42, backend="matplotlib")
