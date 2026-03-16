@@ -2,26 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-16T08:26:15.219Z"
+status: in-progress
+last_updated: "2026-03-16T08:28:50Z"
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 12
-  completed_plans: 12
----
-
----
-gsd_state_version: 1.0
-milestone: v0.1
-milestone_name: milestone
-status: completed
-last_updated: "2026-03-16T05:53:25Z"
-progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # Project State
@@ -31,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** A researcher can `from pxts import *` and confidently load, manipulate, and visualize financial time series — with no hidden bugs and no surprises.
-**Current focus:** Phase 5 — Bloomberg BDH Historical Data Integration
+**Current focus:** Phase 6 — Plotly Rendering Fixes (date axis autoformatting and legend)
 
 ## Current Position
 
-Phase: 5 of 5 (Bloomberg BDH Historical Data Integration)
-Plan: 2 of 2 in current phase
+Phase: 6 of 6 (Plotly Rendering Fixes — Date Axis Autoformatting and Legend)
+Plan: 1 of 1 in current phase
 Status: Completed
-Last activity: 2026-03-16 - Completed quick task 5: commit manual changes to core.py and io.py
+Last activity: 2026-03-16 - Completed 06-01: Plotly tickformatstops + showlegend + year annotation
 
 Progress: [██████████] ~100%
 
@@ -70,6 +57,7 @@ Progress: [██████████] ~100%
 | Phase 04-process-closure P02 | 3 | 3 tasks | 1 files |
 | Phase 05-bloomberg-bdh-historical-data-integration P01 | 2 | 2 tasks | 4 files |
 | Phase 05-bloomberg-bdh-historical-data-integration P02 | 2 | 1 tasks | 1 files |
+| Phase 06-plotly-rendering-fixes P01 | 6 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -112,10 +100,14 @@ Recent decisions affecting current work:
 - [05-01]: BCon try/finally pattern ensures con.stop() is always called even if con.bdh() raises an exception
 - [05-01]: xs(field, axis=1, level=1) reshapes MultiIndex columns returned by pdblp.BCon.bdh() to wide-format with one column per Bloomberg ticker
 - [Phase 05-bloomberg-bdh-historical-data-integration]: patch.dict(sys.modules) required for lazy-import mocks: patch('pxts.io.pdblp') fails because pdblp is imported inside the function body, not at module level
+- [06-01]: tickformatstops replaces _detect_plotly_tickformat — zoom-responsive date labels instead of static format detection
+- [06-01]: _extend_yaxis_for_legend not called in _plot_ts_dual_plotly — dual-axis charts have independent left/right y ranges
+- [06-01]: Tests for deleted _detect_plotly_tickformat replaced with TestPlotlyTickformatstops covering new constant and integration
 
 ### Roadmap Evolution
 
 - Phase 5 added: Bloomberg BDH historical data integration
+- Phase 6 added: Plotly rendering fixes — date axis autoformatting and legend
 
 ### Pending Todos
 
@@ -140,5 +132,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Completed quick-6 — wrote README.md (121 lines); all content checks passed
+Stopped at: Completed 06-01 — Plotly tickformatstops + showlegend + year annotation; 48 tests pass
 Resume file: None
