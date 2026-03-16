@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 Phase: 3 of 3 (Documentation and Polish)
 Plan: 0 of ? in current phase
 Status: Phase 3 not started
-Last activity: 2026-03-16 - Completed quick task 1: clear all phase 2 bug fix records
+Last activity: 2026-03-16 - Completed quick task 2: change date default to DD/MM/YYYY (British)
 
 Progress: [█░░░░░░░░░] ~10%
 
@@ -65,7 +65,8 @@ Recent decisions affecting current work:
 - [01-01]: No pxts imports in conftest.py — prevents side-effects during fixture collection
 - [Phase 01-test-suite]: Inline helper functions for test-local DataFrames rather than fixtures — tz-aware and sparse DataFrames needed only in test_core.py
 - [Phase 01-test-suite]: validate_ts gate tested once per function to confirm pxtsValidationError propagation without duplicating error assertions
-- [Phase 01-test-suite]: Assert current ambiguous date behavior (silent US default) without pytest.warns — TODO(Phase-2) marks update point for FIX-01
+- [Phase 01-test-suite]: Assert current ambiguous date behavior (silent US default) without pytest.warns — TODO(Phase-2) marks update point for FIX-01 (resolved: quick-2 switched to British default)
+- [quick-2]: British (DD/MM/YYYY) is now the default for ambiguous slash-delimited dates — US users must pass date_format='%m/%d/%Y' explicitly
 - [Phase 01-test-suite]: Import pxts.accessor at module level — idempotent registration, safe as module-level side effect
 - [Phase 01-test-suite]: Import from pxts.theme directly (not import pxts) in test_theme.py to avoid apply_theme() triggering before restore_rcparams fixture
 - [01-04]: Use explicit backend= parameter in plot tests — bypasses get_backend() entirely, no patching needed, simpler and more reliable
@@ -86,6 +87,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | clear all phase 2 bug fix records | 2026-03-16 | d854a75 | [1-clear-all-phase-2-bug-fix-records](./quick/1-clear-all-phase-2-bug-fix-records/) |
+| 2 | change date default to DD/MM/YYYY (British) | 2026-03-16 | 74e97ea | [2-change-date-default-to-dd-mm-yyyy-britis](./quick/2-change-date-default-to-dd-mm-yyyy-britis/) |
 
 ### Blockers/Concerns
 
@@ -95,5 +97,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Phase 2 complete and records cleared — ready for Phase 3
+Stopped at: Quick task 2 complete — ambiguous date default changed to British DD/MM/YYYY
 Resume file: None
