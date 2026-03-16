@@ -130,6 +130,7 @@ None yet.
 | 3 | allow float or int for hlines/vlines in tsplot | 2026-03-16 | 3582058 | [3-allow-float-or-int-for-hlines-vlines-in-](./quick/3-allow-float-or-int-for-hlines-vlines-in-/) |
 | 4 | add ylim/xlim/ylim_lhs/ylim_rhs to tsplot and tsplot_dual | 2026-03-16 | 29311dd | [4-add-ylim-xlim-to-tsplot-and-ylim-lhs-yli](./quick/4-add-ylim-xlim-to-tsplot-and-ylim-lhs-yli/) |
 | 5 | commit manual changes to core.py and io.py | 2026-03-16 | 7df78c8 | [5-commit-manual-changes-to-core-py-and-io-](./quick/5-commit-manual-changes-to-core-py-and-io-/) |
+| 6 | write README.md for pxts package | 2026-03-16 | d3fb2dd | [6-write-readme-md-for-pxts-package](./quick/6-write-readme-md-for-pxts-package/) |
 
 ### Blockers/Concerns
 
@@ -139,5 +140,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Completed quick-5 — committed manual core.py/io.py changes; aligned ImportError test regex; 117 tests pass
+Stopped at: Completed quick-6 — wrote README.md (121 lines); all content checks passed
 Resume file: None
