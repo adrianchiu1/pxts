@@ -244,8 +244,19 @@ def _draw_vlines_mpl(ax, vlines) -> None:
 def _manual_deconflict(texts, min_spacing_pt: float = 12) -> None:
     """Manually deconflict text annotations by applying minimum vertical spacing.
 
-    Sorts texts by y-value and applies at least min_spacing_pt points between them.
-    Used as fallback when adjustText is not installed.
+    Sorts texts by y-value and nudges overlapping annotations apart. Used as a
+    fallback when adjustText is not installed.
+
+    Important limitations:
+    - ``min_spacing_pt`` is compared directly against y-axis **data values**, NOT
+      against display/screen points. The parameter name "pt" is a misnomer inherited
+      from the original design — no conversion to pixels or points is performed.
+    - The spacing is an **approximation**: whether ``min_spacing_pt`` data units
+      translates to visually non-overlapping labels depends on the y-axis scale and
+      the figure size. Visual overlap may still occur for compressed axes or large
+      datasets with closely-valued end points.
+    - For accurate display-coordinate deconfliction, install adjustText
+      (``pip install adjustText``), which is the preferred code path.
     """
     if not texts:
         return
