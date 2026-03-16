@@ -1,8 +1,9 @@
-"""pxts I/O layer — read_ts and write_ts for CSV round-trips.
+"""pxts I/O layer — read_ts, write_ts, and read_bdh for CSV round-trips and Bloomberg data.
 
 Public API:
     read_ts(path, *, tz=None, date_format=None) -> pd.DataFrame
     write_ts(df, path, *, date_format=None) -> None
+    read_bdh(tickers, start, field='PX_LAST', end=None) -> pd.DataFrame
 
 Internal:
     _detect_date_format(sample) -> tuple[str, bool]
@@ -170,3 +171,69 @@ def write_ts(
         date_format = "%Y-%m-%dT%H:%M:%S%z"
 
     df.to_csv(path, index=True, date_format=date_format)
+
+
+def read_bdh(
+    tickers,
+    start,
+    field: str = "PX_LAST",
+    end=None,
+) -> pd.DataFrame:
+    """Fetch Bloomberg BDH historical time series data.
+
+    Opens a Bloomberg connection, fetches the requested tickers over the
+    given date range, and returns a validated wide-format DataFrame with
+    a DatetimeIndex and one column per ticker.
+
+    Requires pdblp (optional dependency). Install with:
+        pip install pxts[bloomberg]
+
+    Parameters
+    ----------
+    tickers : list of str
+        Bloomberg ticker strings, e.g. ['AAPL US Equity', 'MSFT US Equity'].
+    start : str, datetime, or pd.Timestamp
+        Start date (inclusive). Converted to 'YYYYMMDD' string internally.
+    field : str
+        Bloomberg field name. Defaults to 'PX_LAST'.
+    end : str, datetime, pd.Timestamp, or None
+        End date (inclusive). Defaults to today when None.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide-format DataFrame with DatetimeIndex (rows = dates,
+        columns = Bloomberg ticker strings).
+
+    Raises
+    ------
+    ImportError
+        If pdblp is not installed.
+    pxtsValidationError
+        If the returned DataFrame does not have a DatetimeIndex.
+    """
+    try:
+        import pdblp
+    except ImportError:
+        raise ImportError(
+            "pdblp required for read_bdh(). Install with: pip install pxts[bloomberg]"
+        )
+
+    start_date = pd.to_datetime(start).strftime("%Y%m%d")
+    if end is None:
+        end_date = pd.Timestamp.today().strftime("%Y%m%d")
+    else:
+        end_date = pd.to_datetime(end).strftime("%Y%m%d")
+
+    con = pdblp.BCon(port=8194, timeout=20)
+    con.start()
+    try:
+        raw = con.bdh(tickers, field, start_date, end_date)
+    finally:
+        con.stop()
+
+    # raw has a MultiIndex column (ticker, field) — select just the field level
+    df = raw.xs(field, axis=1, level=1)
+
+    validate_ts(df)
+    return df
