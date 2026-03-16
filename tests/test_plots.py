@@ -102,6 +102,69 @@ class TestTsplotPlotly:
 
 
 # ---------------------------------------------------------------------------
+# Phase 6: Plotly date axis autoformatting and legend fixes
+# ---------------------------------------------------------------------------
+
+class TestTsplotPlotlyPhase6Fixes:
+    def test_tickformatstops_set_when_no_date_format(self, ts_df):
+        """date_format=None → x-axis uses tickformatstops (zoom-responsive), not a static tickformat."""
+        fig = tsplot(ts_df, backend="plotly")
+        xaxis = fig.layout.xaxis
+        assert xaxis.tickformatstops, "tickformatstops must be set and non-empty"
+        # Static tickformat should NOT be set when using tickformatstops
+        assert not xaxis.tickformat, (
+            f"tickformat should be empty when tickformatstops is used, got: {xaxis.tickformat!r}"
+        )
+
+    def test_tickformat_override_uses_static_string(self, ts_df):
+        """date_format='%Y' → x-axis uses static tickformat string, not tickformatstops."""
+        fig = tsplot(ts_df, date_format="%Y", backend="plotly")
+        xaxis = fig.layout.xaxis
+        assert xaxis.tickformat == "%Y", f"Expected '%Y', got {xaxis.tickformat!r}"
+        assert not xaxis.tickformatstops, (
+            "tickformatstops should not be set when date_format override is used"
+        )
+
+    def test_showlegend_true_in_layout(self, ts_df):
+        """tsplot plotly → showlegend=True is set in the pxts template layout."""
+        fig = tsplot(ts_df, backend="plotly")
+        # showlegend=True is set in the pxts template layout (not directly on fig.layout)
+        template_showlegend = fig.layout.template.layout.showlegend
+        assert template_showlegend is True, (
+            f"showlegend must be True in template layout, got: {template_showlegend!r}"
+        )
+
+    def test_year_annotation_present(self, ts_df):
+        """tsplot plotly with auto date_format → year annotation added to figure."""
+        fig = tsplot(ts_df, backend="plotly")
+        annotation_texts = [a.text for a in fig.layout.annotations]
+        # The year of the last index date should appear somewhere in annotations
+        import pandas as pd
+        expected_year = str(ts_df.index[-1].year)
+        assert any(expected_year in t for t in annotation_texts), (
+            f"Year annotation '{expected_year}' not found. Annotations: {annotation_texts}"
+        )
+
+    def test_year_annotation_absent_with_date_format_override(self, ts_df):
+        """tsplot plotly with date_format override → no year annotation (subtitle may exist but not year)."""
+        fig = tsplot(ts_df, date_format="%Y-%m-%d", backend="plotly")
+        import pandas as pd
+        expected_year = str(ts_df.index[-1].year)
+        annotation_texts = [a.text for a in fig.layout.annotations]
+        assert not any(
+            t == expected_year for t in annotation_texts
+        ), (
+            f"Year annotation should not appear with date_format override. Found: {annotation_texts}"
+        )
+
+    def test_tickformatstops_has_four_tiers(self, ts_df):
+        """tickformatstops must have exactly 4 tiers (decade, year, month, day)."""
+        fig = tsplot(ts_df, backend="plotly")
+        stops = fig.layout.xaxis.tickformatstops
+        assert len(stops) == 4, f"Expected 4 tickformatstops tiers, got {len(stops)}"
+
+
+# ---------------------------------------------------------------------------
 # tsplot_dual — matplotlib backend
 # ---------------------------------------------------------------------------
 
@@ -133,6 +196,20 @@ class TestTsplotDualPlotly:
         fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
+
+    def test_showlegend_true_in_layout(self, ts_df):
+        """tsplot_dual plotly → showlegend=True is set in the pxts template layout."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
+        # showlegend=True is set in the pxts template layout (not directly on fig.layout)
+        template_showlegend = fig.layout.template.layout.showlegend
+        assert template_showlegend is True, (
+            f"showlegend must be True in template layout, got: {template_showlegend!r}"
+        )
+
+    def test_tickformatstops_set_when_no_date_format(self, ts_df):
+        """tsplot_dual date_format=None → x-axis uses tickformatstops."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
+        assert fig.layout.xaxis.tickformatstops, "dual: tickformatstops must be set"
 
 
 # ---------------------------------------------------------------------------
