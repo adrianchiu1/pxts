@@ -433,7 +433,8 @@ def _extend_yaxis_for_legend(fig, df, cols, ylim) -> None:
 
 
 def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
-                    date_format, ylim=None, xlim=None, **kwargs):
+                    date_format, ylim=None, xlim=None,
+                    annotations=None, rangeslider=True, theme="light", **kwargs):
     """plotly implementation of plot_ts."""
     import plotly.graph_objects as go
 
@@ -443,6 +444,22 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
         xaxis_cfg = dict(type="date", tickformat=date_format)
     else:
         xaxis_cfg = dict(type="date", tickformatstops=_PLOTLY_TICKFORMATSTOPS)
+
+    # Range selector buttons and rangeslider
+    xaxis_cfg["rangeselector"] = dict(
+        buttons=list([
+            dict(count=1,  label="1M",  step="month", stepmode="backward"),
+            dict(count=3,  label="3M",  step="month", stepmode="backward"),
+            dict(count=6,  label="6M",  step="month", stepmode="backward"),
+            dict(count=1,  label="YTD", step="year",  stepmode="todate"),
+            dict(count=1,  label="1Y",  step="year",  stepmode="backward"),
+            dict(step="all", label="All"),
+        ]),
+        bgcolor="rgba(255,255,255,0.8)",
+        activecolor="#0072B2",
+        x=0, y=1.02, xanchor="left", yanchor="bottom",
+    )
+    xaxis_cfg["rangeslider"] = dict(visible=rangeslider)
 
     fig = go.Figure()
 
@@ -463,6 +480,16 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
     if title:
         layout_kwargs["title_text"] = title
     fig.update_layout(**layout_kwargs)
+
+    # Apply dark theme after layout update
+    if theme == "dark":
+        from pxts.theme import (DARK_BACKGROUND_COLOR, DARK_PLOT_COLOR,
+                                 DARK_GRID_COLOR, DARK_FONT_COLOR)
+        fig.update_layout(paper_bgcolor=DARK_BACKGROUND_COLOR,
+                          plot_bgcolor=DARK_PLOT_COLOR,
+                          font=dict(color=DARK_FONT_COLOR))
+        fig.update_xaxes(gridcolor=DARK_GRID_COLOR)
+        fig.update_yaxes(gridcolor=DARK_GRID_COLOR)
 
     # Year annotation (ConciseDateFormatter offset equivalent): only when auto-formatting
     if not date_format:
@@ -492,6 +519,7 @@ def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
 
     # labels=True on plotly: hover-only — traces already have hovertemplate set
     # No text traces added per must_haves spec
+    # annotations parameter accepted here but processed in Plan 03
 
     return fig
 
@@ -714,7 +742,9 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
 
 def tsplot(df, cols=None, title: str = "", subtitle: str = "",
            labels: bool = False, hlines=None, vlines=None,
-           date_format=None, ylim=None, xlim=None, backend=None, **kwargs):
+           date_format=None, ylim=None, xlim=None,
+           annotations=None, rangeslider: bool = True, theme: str = "light",
+           backend=None, **kwargs):
     """Plot one or more time series columns from a DataFrame as line charts.
 
     Args:
@@ -729,6 +759,10 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
         date_format: custom date format string (overrides auto-detection).
         ylim: y-axis limits as [lo, hi] or (lo, hi), or None for default.
         xlim: x-axis limits as [date1, date2] (date-like), or None for default.
+        annotations: list of dicts with keys "x" (date) and "text" (str).
+            y auto-looked up from nearest data point. Plotly backend only; ignored on matplotlib.
+        rangeslider: show rangeslider below chart. Default True. Plotly backend only.
+        theme: "light" (default, white background) or "dark" (dark navy). Plotly backend only.
         backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
         **kwargs: forwarded to the underlying plot call (e.g., linewidth, alpha).
 
@@ -757,7 +791,9 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
                             date_format, ylim=ylim, xlim=xlim, **kwargs)
     else:
         return _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
-                               date_format, ylim=ylim, xlim=xlim, **kwargs)
+                               date_format, ylim=ylim, xlim=xlim,
+                               annotations=annotations, rangeslider=rangeslider,
+                               theme=theme, **kwargs)
 
 
 def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
