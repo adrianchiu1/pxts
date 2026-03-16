@@ -40,7 +40,7 @@ def _detect_date_format(sample: str) -> tuple[str, bool]:
     - ISO match (YYYY-MM-DD or YYYY/MM/DD): return ("ISO8601", False)
     - Slash match: if first part > 12 -> DD/MM/YYYY ("%d/%m/%Y", True)
                    if second part > 12 -> MM/DD/YYYY ("%m/%d/%Y", False)
-                   ambiguous (both <= 12) -> default to US ("%m/%d/%Y", False)
+                   ambiguous (both <= 12) -> default to British ("%d/%m/%Y", True)
     - Fallback: ("mixed", False)
     """
     sample = sample.strip()
@@ -59,14 +59,14 @@ def _detect_date_format(sample: str) -> tuple[str, bool]:
             # Month first — US format MM/DD/YYYY
             return ("%m/%d/%Y", False)
         else:
-            # Ambiguous — both parts <= 12 — default to US MM/DD/YYYY
+            # Ambiguous — both parts <= 12 — default to British DD/MM/YYYY
             warnings.warn(
-                f"pxts: ambiguous date '{sample}' — assumed MM/DD/YYYY (US). "
-                f"Pass date_format='%d/%m/%Y' to override.",
+                f"pxts: ambiguous date '{sample}' — assumed DD/MM/YYYY (British). "
+                f"Pass date_format='%m/%d/%Y' to override.",
                 UserWarning,
                 stacklevel=3,  # _detect_date_format -> read_ts -> user call site
             )
-            return ("%m/%d/%Y", False)
+            return ("%d/%m/%Y", True)
 
     return ("mixed", False)
 
