@@ -6,12 +6,26 @@ build-backend = "setuptools.build_meta"
 name = "pxts"
 version = "0.1.0"
 requires-python = ">=3.9"
+description = "Financial time series utilities for pandas"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Adrian Chiu" }]
+keywords = ["finance", "time-series", "pandas", "bloomberg", "plotting"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business :: Financial",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Operating System :: OS Independent",
+]
 dependencies = ["pandas>=2.0", "cycler"]
 
 [project.optional-dependencies]
-plot = ["plotly>=5.0", "matplotlib>=3.5"]
-dev = ["pytest>=7.0", "plotly>=5.0", "matplotlib>=3.5"]
+plot = ["plotly>=5.0", "matplotlib>=3.5", "adjustText"]
+dev = ["pytest>=7.0", "plotly>=5.0", "matplotlib>=3.5", "adjustText"]
 bloomberg = ["pdblp"]
+
+[project.urls]
+Homepage = "https://github.com/adrianchiu1/pxts"
 
 [tool.setuptools.packages.find]
 where = ["src"]
