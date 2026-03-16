@@ -40,6 +40,11 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 - [x] **POL-01**: `_detect_plotly_tickformat` uses median index diff instead of first/last span for tick format selection
 
+### Plotly Rendering
+
+- [x] **PLOTLY-01**: `tsplot` and `tsplot_dual` use zoom-responsive `tickformatstops` (4-tier: decade/year/month/day) instead of static `tickformat`; `_detect_plotly_tickformat()` removed entirely
+- [x] **PLOTLY-02**: Plotly template sets `showlegend=True` with top-right positioning; legend overlap avoidance extends y-axis when the last value lands in the top 25% of the y-range
+
 ## v2 Requirements
 
 ### I/O
@@ -82,10 +87,12 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 | DOC-03 | Phase 3 | Complete |
 | DOC-04 | Phase 3 | Complete |
 | POL-01 | Phase 3 | Complete |
+| PLOTLY-01 | Phase 6 | Complete |
+| PLOTLY-02 | Phase 6 | Complete |
 
 **Coverage:**
-- v1 requirements: 18 total
-- Mapped to phases: 18
+- v1 requirements: 20 total
+- Mapped to phases: 20
 - Unmapped: 0 ✓
 
 ---
