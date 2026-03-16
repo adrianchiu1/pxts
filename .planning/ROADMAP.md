@@ -76,14 +76,14 @@ Phases execute in numeric order: 1 → 2 → 3
 | 2. Bug Fixes and Dependencies | 3/3 | Complete   | 2026-03-15 |
 | 3. Documentation and Polish | 2/2 | Complete    | 2026-03-16 |
 | 4. Process Closure and Cleanup | 3/3 | Complete   | 2026-03-16 |
-| 5. Bloomberg BDH Integration | 1/2 | In progress | - |
+| 5. Bloomberg BDH Integration | 2/2 | Complete   | 2026-03-16 |
 
 ### Phase 5: Bloomberg BDH historical data integration
 
 **Goal:** Add read_bdh() to pxts for fetching Bloomberg historical time series data via pdblp, returning pxts-standard validated DataFrames ready for transform and plot functions
 **Requirements**: TBD
 **Depends on:** Phase 4
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 05-01-PLAN.md — read_bdh() implementation in io.py, wiring into __init__.py and TsAccessor, bloomberg optional dep in pyproject.toml (completed 2026-03-16)

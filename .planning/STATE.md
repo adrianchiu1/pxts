@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-03-16T05:29:00Z"
+status: completed
+last_updated: "2026-03-16T05:53:25Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 5
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 5 of 5 (Bloomberg BDH Historical Data Integration)
-Plan: 1 of 1 in current phase
+Plan: 2 of 2 in current phase
 Status: Completed
-Last activity: 2026-03-16 - Completed 05-01: read_bdh() implemented with lazy pdblp import, BCon connection management, and wide-format reshape
+Last activity: 2026-03-16 - Completed 05-02: 8 unit tests for read_bdh() with patch.dict(sys.modules) mock pattern for lazy pdblp import
 
 Progress: [██████████] ~100%
 
@@ -56,6 +56,7 @@ Progress: [██████████] ~100%
 | Phase 04-process-closure P01 | 5 | 2 tasks | 1 files |
 | Phase 04-process-closure P02 | 3 | 3 tasks | 1 files |
 | Phase 05-bloomberg-bdh-historical-data-integration P01 | 2 | 2 tasks | 4 files |
+| Phase 05-bloomberg-bdh-historical-data-integration P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,7 @@ Recent decisions affecting current work:
 - [05-01]: Lazy import of pdblp at call time — allows from pxts import read_bdh without pdblp installed; ImportError only raised when read_bdh() is actually called
 - [05-01]: BCon try/finally pattern ensures con.stop() is always called even if con.bdh() raises an exception
 - [05-01]: xs(field, axis=1, level=1) reshapes MultiIndex columns returned by pdblp.BCon.bdh() to wide-format with one column per Bloomberg ticker
+- [Phase 05-bloomberg-bdh-historical-data-integration]: patch.dict(sys.modules) required for lazy-import mocks: patch('pxts.io.pdblp') fails because pdblp is imported inside the function body, not at module level
 
 ### Roadmap Evolution
 
@@ -123,5 +125,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Completed 05-01 — read_bdh() with lazy pdblp import, BCon connection management, wide-format reshape, wired into public API and TsAccessor
+Stopped at: Completed 05-02 — 8 unit tests for read_bdh() with patch.dict(sys.modules) mock pattern; Phase 5 complete; all 117 tests pass
 Resume file: None
