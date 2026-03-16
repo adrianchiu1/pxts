@@ -129,6 +129,7 @@ None yet.
 | 2 | change date default to DD/MM/YYYY (British) | 2026-03-16 | 74e97ea | [2-change-date-default-to-dd-mm-yyyy-britis](./quick/2-change-date-default-to-dd-mm-yyyy-britis/) |
 | 3 | allow float or int for hlines/vlines in tsplot | 2026-03-16 | 3582058 | [3-allow-float-or-int-for-hlines-vlines-in-](./quick/3-allow-float-or-int-for-hlines-vlines-in-/) |
 | 4 | add ylim/xlim/ylim_lhs/ylim_rhs to tsplot and tsplot_dual | 2026-03-16 | 29311dd | [4-add-ylim-xlim-to-tsplot-and-ylim-lhs-yli](./quick/4-add-ylim-xlim-to-tsplot-and-ylim-lhs-yli/) |
+| 5 | commit manual changes to core.py and io.py | 2026-03-16 | 7df78c8 | [5-commit-manual-changes-to-core-py-and-io-](./quick/5-commit-manual-changes-to-core-py-and-io-/) |
 
 ### Blockers/Concerns
 
@@ -138,5 +139,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Completed 05-02 — 8 unit tests for read_bdh() with patch.dict(sys.modules) mock pattern; Phase 5 complete; all 117 tests pass
+Stopped at: Completed quick-5 — committed manual core.py/io.py changes; aligned ImportError test regex; 117 tests pass
 Resume file: None
