@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** A researcher can `from pxts import *` and confidently load, manipulate, and visualize financial time series — with no hidden bugs and no surprises.
-**Current focus:** Phase 1 — Test Suite
+**Current focus:** Phase 3 — Documentation and Polish
 
 ## Current Position
 
-Phase: 2 of 3 (Bug Fixes and Dependencies)
-Plan: 2 of 3 in current phase
-Status: Phase 2 in progress
-Last activity: 2026-03-15 — Plan 02-02 complete: fixed set_tz (FIX-02), infer_freq (FIX-03), to_dense (FIX-04) — 89 tests passing
+Phase: 3 of 3 (Documentation and Polish)
+Plan: 0 of ? in current phase
+Status: Phase 3 not started
+Last activity: 2026-03-16 — Phase 2 records cleared
 
 Progress: [█░░░░░░░░░] ~10%
 
@@ -50,9 +50,6 @@ Progress: [█░░░░░░░░░] ~10%
 | Phase 01-test-suite P02 | 2 | 1 tasks | 1 files |
 | Phase 01-test-suite P03 | 3 | 1 tasks | 1 files |
 | Phase 01-test-suite P05 | 1 | 1 tasks | 2 files |
-| Phase 02-bug-fixes-and-dependencies P02 | 12 | 2 tasks | 2 files |
-| Phase 02-bug-fixes-and-dependencies P03 | 5 | 2 tasks | 2 files |
-| Phase 02-bug-fixes-and-dependencies P01 | 5 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -91,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15
-Stopped at: Completed 02-02-PLAN.md — fixed set_tz/infer_freq/to_dense silent bugs in core.py (FIX-02, FIX-03, FIX-04)
+Last session: 2026-03-16
+Stopped at: Phase 2 complete and records cleared — ready for Phase 3
 Resume file: None
