@@ -158,17 +158,27 @@ def _validate_plot_params(
 
 
 def _detect_plotly_tickformat(df) -> str:
-    """Return a d3 tickformat string based on the DatetimeIndex span.
+    """Return a d3 tickformat string based on the median interval between index timestamps.
 
-    Thresholds:
-        - span > 3 years (3*365 days): '%Y'
-        - span > 180 days: '%b %Y'
-        - else: '%b %d'
+    Uses the median of consecutive index differences (not total span) so that sparse
+    datasets with clustered points select an appropriate tick granularity rather than
+    the granularity implied by the full date range.
+
+    Thresholds (applied to median_days):
+        - median_days > 180: '%Y'    (semi-annual or annual data)
+        - median_days > 25: '%b %Y'  (monthly or quarterly data)
+        - else: '%b %d'              (daily or sub-daily data)
+
+    Edge case: single-row DataFrame (no diffs possible) → defaults to '%b %d'.
     """
-    span_days = (df.index[-1] - df.index[0]).days
-    if span_days > 3 * 365:
+    import numpy as np
+    if len(df) < 2:
+        return "%b %d"
+    diffs = pd.Series(df.index).diff().dropna()
+    median_days = diffs.median().days
+    if median_days > 180:
         return "%Y"
-    elif span_days > 180:
+    elif median_days > 25:
         return "%b %Y"
     else:
         return "%b %d"
