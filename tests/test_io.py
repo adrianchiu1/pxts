@@ -38,11 +38,11 @@ class TestDetectDateFormat:
         """Second part > 12 → MM/DD/YYYY (US)."""
         assert _detect_date_format("01/15/2024") == ("%m/%d/%Y", False)
 
-    def test_ambiguous_defaults_to_us(self):
-        """Both parts ≤ 12 → ambiguous → defaults to US format with a UserWarning."""
+    def test_ambiguous_defaults_to_british(self):
+        """Both parts ≤ 12 → ambiguous → defaults to British format with a UserWarning."""
         with pytest.warns(UserWarning, match="ambiguous date"):
             result = _detect_date_format("01/02/2024")
-        assert result == ("%m/%d/%Y", False)
+        assert result == ("%d/%m/%Y", True)
 
     def test_unambiguous_uk_no_warning(self):
         """First part > 12 → unambiguous UK — no warning emitted."""
@@ -100,15 +100,15 @@ class TestReadTs:
         assert isinstance(df.index, pd.DatetimeIndex)
         assert df.index[0] == pd.Timestamp("2024-01-15")
 
-    def test_ambiguous_slash_csv_treated_as_us(self, tmp_path):
-        """Ambiguous slash date (01/02/2024) defaults to US with a UserWarning."""
+    def test_ambiguous_slash_csv_treated_as_british(self, tmp_path):
+        """Ambiguous slash date (01/02/2024) defaults to British with a UserWarning."""
         rows = ["date,A,B", "01/02/2024,1.0,5.0", "01/03/2024,2.0,4.0"]
         path = write_csv(tmp_path, rows)
         with pytest.warns(UserWarning, match="ambiguous date"):
             df = read_ts(path)
         assert isinstance(df.index, pd.DatetimeIndex)
-        # US default: 01/02/2024 → January 2, 2024
-        assert df.index[0] == pd.Timestamp("2024-01-02")
+        # British default: 01/02/2024 → February 1, 2024
+        assert df.index[0] == pd.Timestamp("2024-02-01")
 
     def test_explicit_date_format_suppresses_warning(self, tmp_path):
         """Explicit date_format param bypasses detection — no warning emitted."""
