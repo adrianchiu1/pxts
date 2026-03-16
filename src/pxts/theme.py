@@ -37,6 +37,12 @@ BACKGROUND_COLOR: str = "#FFFFFF"  # White background
 GRID_COLOR: str = "#E5E5E5"        # Subtle gray gridlines
 GRID_ALPHA: float = 0.6
 
+# Dark theme colors (used when theme='dark' is passed to tsplot/tsplot_dual)
+DARK_BACKGROUND_COLOR: str = "#1a1a2e"   # Deep navy background
+DARK_PLOT_COLOR: str = "#16213e"          # Slightly lighter navy for plot area
+DARK_GRID_COLOR: str = "#2d2d5a"          # Muted purple-navy grid
+DARK_FONT_COLOR: str = "#e0e0e0"          # Light gray text for readability
+
 # Font
 DEFAULT_FONT_SIZE: int = 12
 FONT_FAMILY: str = "Arial, sans-serif"
@@ -81,6 +87,8 @@ def _apply_plotly_theme() -> None:
                     x=1,
                 ),
                 showlegend=True,
+                margin=dict(l=60, r=40, t=50, b=50),
+                autosize=True,
             )
         )
 
