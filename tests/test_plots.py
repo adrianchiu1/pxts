@@ -469,3 +469,234 @@ class TestPlotlyTickformatstops:
         cols = list(ts_df.columns)
         fig = tsplot_dual(ts_df, left=[cols[0]], right=[cols[1]], backend="plotly")
         assert fig.layout.xaxis.tickformatstops, "dual: tickformatstops should be present"
+
+
+# ---------------------------------------------------------------------------
+# Phase 7: Interactive Plotly time series charts
+# ---------------------------------------------------------------------------
+
+class TestPhase7RangeNav:
+    """PLT7-01 / PLT7-02: Range selector buttons and rangeslider."""
+
+    def test_tsplot_has_six_range_buttons(self, ts_df):
+        """tsplot plotly default -> rangeselector with 6 buttons."""
+        fig = tsplot(ts_df, backend="plotly")
+        rs = fig.layout.xaxis.rangeselector
+        assert rs is not None, "rangeselector missing"
+        assert len(rs.buttons) == 6, f"expected 6 buttons, got {len(rs.buttons)}"
+
+    def test_tsplot_range_button_labels(self, ts_df):
+        """tsplot plotly -> buttons labeled 1M, 3M, 6M, YTD, 1Y, All."""
+        fig = tsplot(ts_df, backend="plotly")
+        labels = [b.label for b in fig.layout.xaxis.rangeselector.buttons]
+        for lbl in ["1M", "3M", "6M", "YTD", "1Y", "All"]:
+            assert lbl in labels, f"button '{lbl}' missing from {labels}"
+
+    def test_tsplot_rangeslider_visible_by_default(self, ts_df):
+        """tsplot plotly default -> rangeslider visible."""
+        fig = tsplot(ts_df, backend="plotly")
+        assert fig.layout.xaxis.rangeslider.visible is True
+
+    def test_tsplot_rangeslider_opt_out(self, ts_df):
+        """tsplot(rangeslider=False) -> rangeslider not visible."""
+        fig = tsplot(ts_df, rangeslider=False, backend="plotly")
+        assert fig.layout.xaxis.rangeslider.visible is False
+
+    def test_tsplot_dual_has_range_buttons(self, ts_df):
+        """tsplot_dual plotly default -> rangeselector with 6 buttons."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
+        rs = fig.layout.xaxis.rangeselector
+        assert rs is not None, "dual: rangeselector missing"
+        assert len(rs.buttons) == 6
+
+    def test_tsplot_dual_rangeslider_opt_out(self, ts_df):
+        """tsplot_dual(rangeslider=False) -> rangeslider not visible."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          rangeslider=False, backend="plotly")
+        assert fig.layout.xaxis.rangeslider.visible is False
+
+    def test_rangeslider_mpl_no_error(self, ts_df):
+        """rangeslider param accepted by matplotlib backend without error."""
+        import matplotlib.figure
+        fig = tsplot(ts_df, rangeslider=False, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+
+class TestPhase7Theme:
+    """PLT7-03 / PLT7-04: Visual polish and dark theme."""
+
+    def test_plotly_template_has_tighter_margins(self, ts_df):
+        """pxts Plotly template margin is set (not default None values)."""
+        import plotly.io as pio
+        template = pio.templates["pxts"]
+        m = template.layout.margin
+        # Any explicit margin means we set it (Plotly defaults are None)
+        assert m.l is not None or m.r is not None, (
+            "Template margin not set — whitespace fix not applied"
+        )
+
+    def test_theme_light_is_default(self, ts_df):
+        """tsplot(backend='plotly') defaults to light (white) background."""
+        fig = tsplot(ts_df, backend="plotly")
+        # With theme='light', paper_bgcolor should NOT be the dark color
+        assert fig.layout.paper_bgcolor != "#1a1a2e", "Default should not be dark"
+
+    def test_theme_dark_sets_dark_background(self, ts_df):
+        """tsplot(theme='dark') sets dark paper_bgcolor."""
+        fig = tsplot(ts_df, theme="dark", backend="plotly")
+        assert fig.layout.paper_bgcolor == "#1a1a2e", (
+            f"dark theme paper_bgcolor: {fig.layout.paper_bgcolor}"
+        )
+
+    def test_theme_dark_dual(self, ts_df):
+        """tsplot_dual(theme='dark') sets dark paper_bgcolor."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          theme="dark", backend="plotly")
+        assert fig.layout.paper_bgcolor == "#1a1a2e"
+
+    def test_theme_mpl_no_error(self, ts_df):
+        """theme param accepted by matplotlib backend without error."""
+        import matplotlib.figure
+        fig = tsplot(ts_df, theme="dark", backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+
+class TestPhase7Annotations:
+    """PLT7-05 / PLT7-06: Annotation parameter and add_annotation helper."""
+
+    def test_tsplot_annotation_adds_text(self, ts_df):
+        """tsplot(annotations=[{...}]) adds annotation text to Plotly figure."""
+        from pxts.plots import tsplot, add_annotation
+        ann = [{"x": "2024-01-03", "text": "Event"}]
+        fig = tsplot(ts_df, annotations=ann, backend="plotly")
+        texts = [a.text for a in fig.layout.annotations]
+        assert any("Event" in t for t in texts), f"'Event' not in annotations: {texts}"
+
+    def test_tsplot_annotation_showarrow_false(self, ts_df):
+        """Annotations have showarrow=False (text only, no arrow)."""
+        from pxts.plots import tsplot
+        ann = [{"x": "2024-01-03", "text": "Peak"}]
+        fig = tsplot(ts_df, annotations=ann, backend="plotly")
+        # Find the non-year annotation
+        user_anns = [a for a in fig.layout.annotations if "Peak" in (a.text or "")]
+        assert len(user_anns) == 1, f"Expected 1 Peak annotation, got {user_anns}"
+        assert user_anns[0].showarrow is False
+
+    def test_tsplot_annotation_y_auto_lookup(self, ts_df):
+        """Annotation without y key auto-looks up y from nearest data point."""
+        from pxts.plots import tsplot
+        # 2024-01-03 is index position 2, A=3.0
+        ann = [{"x": "2024-01-03", "text": "AutoY"}]
+        fig = tsplot(ts_df, cols=["A"], annotations=ann, backend="plotly")
+        user_anns = [a for a in fig.layout.annotations if "AutoY" in (a.text or "")]
+        assert len(user_anns) == 1
+        # y should be auto-looked up as 3.0 (A value at 2024-01-03)
+        assert abs(user_anns[0].y - 3.0) < 0.01, f"Expected y~3.0, got {user_anns[0].y}"
+
+    def test_tsplot_dual_annotation_with_col(self, ts_df):
+        """tsplot_dual annotation with col key adds annotation to correct axis."""
+        from pxts.plots import tsplot_dual
+        ann = [{"x": "2024-01-03", "text": "Dual", "col": "A"}]
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          annotations=ann, backend="plotly")
+        texts = [a.text for a in fig.layout.annotations]
+        assert any("Dual" in t for t in texts), f"'Dual' not found in {texts}"
+
+    def test_add_annotation_adds_to_figure(self, ts_df):
+        """add_annotation(fig, x, text=...) adds annotation in-place to existing figure."""
+        from pxts.plots import tsplot, add_annotation
+        fig = tsplot(ts_df, backend="plotly")
+        count_before = len(fig.layout.annotations)
+        add_annotation(fig, "2024-01-03", text="PostCall")
+        count_after = len(fig.layout.annotations)
+        assert count_after == count_before + 1, (
+            f"Expected {count_before+1} annotations, got {count_after}"
+        )
+        texts = [a.text for a in fig.layout.annotations]
+        assert any("PostCall" in t for t in texts)
+
+    def test_add_annotation_with_y(self, ts_df):
+        """add_annotation(fig, x, y=2.5, text=...) uses provided y."""
+        from pxts.plots import tsplot, add_annotation
+        fig = tsplot(ts_df, backend="plotly")
+        add_annotation(fig, "2024-01-02", y=2.5, text="Fixed")
+        user_anns = [a for a in fig.layout.annotations if "Fixed" in (a.text or "")]
+        assert len(user_anns) == 1
+        assert abs(user_anns[0].y - 2.5) < 0.01
+
+    def test_add_annotation_exported_from_pxts(self):
+        """add_annotation is importable from pxts top-level package."""
+        from pxts import add_annotation
+        assert callable(add_annotation)
+
+    def test_annotations_wrong_type_raises(self, ts_df):
+        """annotations='bad' raises ValueError mentioning 'annotations'."""
+        with pytest.raises(ValueError, match="annotations"):
+            tsplot(ts_df, annotations="bad", backend="matplotlib")
+
+    def test_annotations_missing_x_raises(self, ts_df):
+        """annotations=[{'text': 'x'}] (no x key) raises ValueError."""
+        with pytest.raises(ValueError, match="annotations"):
+            tsplot(ts_df, annotations=[{"text": "no x key"}], backend="matplotlib")
+
+    def test_annotations_missing_text_raises(self, ts_df):
+        """annotations=[{'x': date}] (no text key) raises ValueError."""
+        with pytest.raises(ValueError, match="annotations"):
+            tsplot(ts_df, annotations=[{"x": "2024-01-01"}], backend="matplotlib")
+
+
+class TestPhase7DualAxisLabels:
+    """PLT7-07: left_label and right_label axis title parameters."""
+
+    def test_left_label_sets_yaxis_title(self, ts_df):
+        """left_label='Energy' sets primary y-axis title text."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          left_label="Energy", backend="plotly")
+        yaxis_title = fig.layout.yaxis.title.text
+        assert yaxis_title == "Energy", f"Expected 'Energy', got {yaxis_title!r}"
+
+    def test_left_label_title_colored_left_color(self, ts_df):
+        """left_label title font color matches LEFT_COLOR."""
+        from pxts.plots import LEFT_COLOR
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          left_label="Energy", backend="plotly")
+        title_color = fig.layout.yaxis.title.font.color
+        assert title_color == LEFT_COLOR, (
+            f"Expected {LEFT_COLOR}, got {title_color!r}"
+        )
+
+    def test_right_label_sets_yaxis2_title(self, ts_df):
+        """right_label='Steam' sets secondary y-axis title text."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          right_label="Steam", backend="plotly")
+        yaxis2_title = fig.layout.yaxis2.title.text
+        assert yaxis2_title == "Steam", f"Expected 'Steam', got {yaxis2_title!r}"
+
+    def test_right_label_title_colored_right_color(self, ts_df):
+        """right_label title font color matches RIGHT_COLOR."""
+        from pxts.plots import RIGHT_COLOR
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          right_label="Steam", backend="plotly")
+        title_color = fig.layout.yaxis2.title.font.color
+        assert title_color == RIGHT_COLOR, (
+            f"Expected {RIGHT_COLOR}, got {title_color!r}"
+        )
+
+    def test_no_labels_means_no_axis_title(self, ts_df):
+        """tsplot_dual with no left_label/right_label -> no y-axis title set."""
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
+        # When None, Plotly leaves title.text as None or empty
+        assert not fig.layout.yaxis.title.text, (
+            f"Unexpected yaxis title: {fig.layout.yaxis.title.text!r}"
+        )
+
+    def test_left_right_labels_mpl_no_error(self, ts_df):
+        """left_label/right_label accepted by matplotlib backend without error."""
+        import matplotlib.figure
+        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
+                          left_label="LHS", right_label="RHS",
+                          backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
