@@ -18,16 +18,16 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 ### Dependencies
 
-- [ ] **DEP-01**: `cycler` declared as explicit runtime dependency in `pyproject.toml`
-- [ ] **DEP-02**: `adjustText` documented as optional install with clear user-facing message when absent
+- [x] **DEP-01**: `cycler` declared as explicit runtime dependency in `pyproject.toml`
+- [x] **DEP-02**: `adjustText` documented as optional install with clear user-facing message when absent
 
 ### Bug Fixes
 
-- [ ] **FIX-01**: `_detect_date_format` emits `UserWarning` when slash-delimited date is ambiguous (both parts ≤ 12) instead of silently defaulting to US format
-- [ ] **FIX-02**: `set_tz` uses proper timezone identity comparison (not string equality) to avoid spurious conversions between semantically equivalent timezones
-- [ ] **FIX-03**: `infer_freq` resolves B-vs-D ambiguity via weekday detection — sequences with weekends return `'D'`, sequences without return `'B'`
-- [ ] **FIX-04**: `to_dense` normalizes the `freq` alias before the no-op string comparison (so `'1D'` and `'D'` are treated as equivalent)
-- [ ] **FIX-05**: `tsplot` and `tsplot_dual` validate `hlines`, `vlines`, `title`, `subtitle`, and `date_format` parameter types with clear error messages
+- [x] **FIX-01**: `_detect_date_format` emits `UserWarning` when slash-delimited date is ambiguous (both parts ≤ 12) instead of silently defaulting to US format
+- [x] **FIX-02**: `set_tz` uses proper timezone identity comparison (not string equality) to avoid spurious conversions between semantically equivalent timezones
+- [x] **FIX-03**: `infer_freq` resolves B-vs-D ambiguity via weekday detection — sequences with weekends return `'D'`, sequences without return `'B'`
+- [x] **FIX-04**: `to_dense` normalizes the `freq` alias before the no-op string comparison (so `'1D'` and `'D'` are treated as equivalent)
+- [x] **FIX-05**: `tsplot` and `tsplot_dual` validate `hlines`, `vlines`, `title`, `subtitle`, and `date_format` parameter types with clear error messages
 
 ### Documentation Fixes
 
@@ -70,13 +70,13 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 | TEST-04 | Phase 4 | Complete |
 | TEST-05 | Phase 4 | Complete |
 | TEST-06 | Phase 4 | Complete |
-| DEP-01 | Phase 4 | Pending |
-| DEP-02 | Phase 4 | Pending |
-| FIX-01 | Phase 4 | Pending |
-| FIX-02 | Phase 4 | Pending |
-| FIX-03 | Phase 4 | Pending |
-| FIX-04 | Phase 4 | Pending |
-| FIX-05 | Phase 4 | Pending |
+| DEP-01 | Phase 4 | Complete |
+| DEP-02 | Phase 4 | Complete |
+| FIX-01 | Phase 4 | Complete |
+| FIX-02 | Phase 4 | Complete |
+| FIX-03 | Phase 4 | Complete |
+| FIX-04 | Phase 4 | Complete |
+| FIX-05 | Phase 4 | Complete |
 | DOC-01 | Phase 3 | Complete |
 | DOC-02 | Phase 3 | Complete |
 | DOC-03 | Phase 3 | Complete |
