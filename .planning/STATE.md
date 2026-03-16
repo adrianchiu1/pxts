@@ -88,6 +88,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 1 | clear all phase 2 bug fix records | 2026-03-16 | d854a75 | [1-clear-all-phase-2-bug-fix-records](./quick/1-clear-all-phase-2-bug-fix-records/) |
 | 2 | change date default to DD/MM/YYYY (British) | 2026-03-16 | 74e97ea | [2-change-date-default-to-dd-mm-yyyy-britis](./quick/2-change-date-default-to-dd-mm-yyyy-britis/) |
+| 3 | allow float or int for hlines/vlines in tsplot | 2026-03-16 | 3582058 | [3-allow-float-or-int-for-hlines-vlines-in-](./quick/3-allow-float-or-int-for-hlines-vlines-in-/) |
 
 ### Blockers/Concerns
 
@@ -97,5 +98,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Quick task 2 complete — ambiguous date default changed to British DD/MM/YYYY
+Stopped at: Quick task 3 complete — scalar int/float hlines/vlines normalized to list in tsplot/tsplot_dual
 Resume file: None
