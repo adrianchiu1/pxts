@@ -2,26 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-16T05:21:33.606Z"
+status: in_progress
+last_updated: "2026-03-16T05:29:00Z"
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
----
-
----
-gsd_state_version: 1.0
-milestone: v0.1
-milestone_name: milestone
-status: unknown
-last_updated: "2026-03-16T05:15:42.516Z"
-progress:
-  total_phases: 4
-  completed_phases: 2
-  total_plans: 10
-  completed_plans: 9
+  total_phases: 5
+  completed_phases: 4
+  total_plans: 11
+  completed_plans: 11
 ---
 
 # Project State
@@ -31,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** A researcher can `from pxts import *` and confidently load, manipulate, and visualize financial time series — with no hidden bugs and no surprises.
-**Current focus:** Phase 3 — Documentation and Polish
+**Current focus:** Phase 5 — Bloomberg BDH Historical Data Integration
 
 ## Current Position
 
-Phase: 3 of 3 (Documentation and Polish)
-Plan: 2 of ? in current phase
-Status: In progress
-Last activity: 2026-03-16 - Completed 03-02: fixed _manual_deconflict docstring and replaced _detect_plotly_tickformat with median-diff algorithm
+Phase: 5 of 5 (Bloomberg BDH Historical Data Integration)
+Plan: 1 of 1 in current phase
+Status: Completed
+Last activity: 2026-03-16 - Completed 05-01: read_bdh() implemented with lazy pdblp import, BCon connection management, and wide-format reshape
 
-Progress: [████░░░░░░] ~40%
+Progress: [██████████] ~100%
 
 ## Performance Metrics
 
@@ -68,6 +55,7 @@ Progress: [████░░░░░░] ~40%
 | Phase 04-process-closure P03 | 1 | 3 tasks | 2 files |
 | Phase 04-process-closure P01 | 5 | 2 tasks | 1 files |
 | Phase 04-process-closure P02 | 3 | 3 tasks | 1 files |
+| Phase 05-bloomberg-bdh-historical-data-integration P01 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -106,6 +94,13 @@ Recent decisions affecting current work:
 - [Phase 04-process-closure]: Retroactive VERIFICATION.md grounded in git history — all Phase 1 commits present and verifiable
 - [Phase 04-process-closure]: Phase 2 VERIFICATION.md written retroactively from git history — all evidence preserved in commits
 - [Phase 04-process-closure]: FIX-03 requirement wording already correct in REQUIREMENTS.md — confirmed, no change needed
+- [05-01]: Lazy import of pdblp at call time — allows from pxts import read_bdh without pdblp installed; ImportError only raised when read_bdh() is actually called
+- [05-01]: BCon try/finally pattern ensures con.stop() is always called even if con.bdh() raises an exception
+- [05-01]: xs(field, axis=1, level=1) reshapes MultiIndex columns returned by pdblp.BCon.bdh() to wide-format with one column per Bloomberg ticker
+
+### Roadmap Evolution
+
+- Phase 5 added: Bloomberg BDH historical data integration
 
 ### Pending Todos
 
@@ -128,5 +123,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Completed 03-02 — _manual_deconflict docstring fix and _detect_plotly_tickformat median-diff algorithm
+Stopped at: Completed 05-01 — read_bdh() with lazy pdblp import, BCon connection management, wide-format reshape, wired into public API and TsAccessor
 Resume file: None
