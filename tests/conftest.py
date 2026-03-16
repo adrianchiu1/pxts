@@ -18,10 +18,3 @@ def bad_df():
     """DataFrame with a plain RangeIndex (no DatetimeIndex) to test validation errors."""
     return pd.DataFrame({"A": [1, 2, 3]})
 
-
-@pytest.fixture
-def tmp_csv(tmp_path, ts_df):
-    """Write ts_df to a temporary CSV and return the Path (function scope)."""
-    path = tmp_path / "test.csv"
-    ts_df.to_csv(path, date_format="%Y-%m-%d")
-    return path
