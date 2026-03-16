@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 Phase: 3 of 3 (Documentation and Polish)
 Plan: 0 of ? in current phase
 Status: Phase 3 not started
-Last activity: 2026-03-16 - Completed quick task 2: change date default to DD/MM/YYYY (British)
+Last activity: 2026-03-16 - Completed quick task 3: allow float or int for hlines/vlines in tsplot and tsplot_dual
 
 Progress: [█░░░░░░░░░] ~10%
 
