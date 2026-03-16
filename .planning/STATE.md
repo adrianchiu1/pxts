@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-15T07:26:57.260Z"
+last_updated: "2026-03-16T04:47:30.253Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  total_phases: 3
+  completed_phases: 1
+  total_plans: 7
+  completed_plans: 6
 ---
 
 # Project State
@@ -50,6 +50,7 @@ Progress: [█░░░░░░░░░] ~10%
 | Phase 01-test-suite P02 | 2 | 1 tasks | 1 files |
 | Phase 01-test-suite P03 | 3 | 1 tasks | 1 files |
 | Phase 01-test-suite P05 | 1 | 1 tasks | 2 files |
+| Phase 03-documentation-and-polish P01 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Recent decisions affecting current work:
 - [Phase 02-bug-fixes-and-dependencies]: stacklevel=2 in warnings.warn points UserWarning at tsplot/tsplot_dual call site (user-visible location)
 - [Phase 02-bug-fixes-and-dependencies]: _ADJUSTTEXT_WARNED mutated via global declaration inside _add_mpl_end_labels — module-level persistence across calls
 - [quick-4]: Reject bare int/float for xlim — pd.Timestamp accepts them as nanoseconds but they are not meaningful date-like user inputs; require str, pd.Timestamp, or datetime objects
+- [Phase 03-01]: Parquet removed from read_ts/write_ts descriptions to match CSV-only v0.1 reality
+- [Phase 03-01]: apply_theme() import side-effect documented in __init__.py module docstring with order-of-import note
+- [Phase 03-01]: IS_JUPYTER cached-at-import behavior documented in _backend.py with reload scenario and manual override workaround
 
 ### Pending Todos
 

@@ -31,9 +31,9 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 
 ### Documentation Fixes
 
-- [ ] **DOC-01**: `__init__.py` docstring removes Parquet mention from `read_ts`/`write_ts` description
-- [ ] **DOC-02**: `_backend.py` documents `IS_JUPYTER` cached-at-import behavior and its implications
-- [ ] **DOC-03**: `__init__.py` documents `apply_theme()` global side-effect at import time
+- [x] **DOC-01**: `__init__.py` docstring removes Parquet mention from `read_ts`/`write_ts` description
+- [x] **DOC-02**: `_backend.py` documents `IS_JUPYTER` cached-at-import behavior and its implications
+- [x] **DOC-03**: `__init__.py` documents `apply_theme()` global side-effect at import time
 - [ ] **DOC-04**: `_manual_deconflict` docstring notes the display-coordinate approximation limitation
 
 ### Polish
@@ -77,9 +77,9 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 | FIX-03 | Phase 2 | Complete |
 | FIX-04 | Phase 2 | Complete |
 | FIX-05 | Phase 2 | Complete |
-| DOC-01 | Phase 3 | Pending |
-| DOC-02 | Phase 3 | Pending |
-| DOC-03 | Phase 3 | Pending |
+| DOC-01 | Phase 3 | Complete |
+| DOC-02 | Phase 3 | Complete |
+| DOC-03 | Phase 3 | Complete |
 | DOC-04 | Phase 3 | Pending |
 | POL-01 | Phase 3 | Pending |
 
