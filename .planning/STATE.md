@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 Phase: 3 of 3 (Documentation and Polish)
 Plan: 0 of ? in current phase
 Status: Phase 3 not started
-Last activity: 2026-03-16 - Completed quick task 3: allow float or int for hlines/vlines in tsplot and tsplot_dual
+Last activity: 2026-03-16 - Completed quick task 4: add ylim/xlim/ylim_lhs/ylim_rhs axis limit parameters to tsplot and tsplot_dual
 
 Progress: [█░░░░░░░░░] ~10%
 
@@ -77,6 +77,7 @@ Recent decisions affecting current work:
 - [Phase 02-bug-fixes-and-dependencies]: Use warnings.catch_warnings(record=True) for no-warning assertions: pytest.warns(None) removed in pytest 7+
 - [Phase 02-bug-fixes-and-dependencies]: stacklevel=2 in warnings.warn points UserWarning at tsplot/tsplot_dual call site (user-visible location)
 - [Phase 02-bug-fixes-and-dependencies]: _ADJUSTTEXT_WARNED mutated via global declaration inside _add_mpl_end_labels — module-level persistence across calls
+- [quick-4]: Reject bare int/float for xlim — pd.Timestamp accepts them as nanoseconds but they are not meaningful date-like user inputs; require str, pd.Timestamp, or datetime objects
 
 ### Pending Todos
 
@@ -89,6 +90,7 @@ None yet.
 | 1 | clear all phase 2 bug fix records | 2026-03-16 | d854a75 | [1-clear-all-phase-2-bug-fix-records](./quick/1-clear-all-phase-2-bug-fix-records/) |
 | 2 | change date default to DD/MM/YYYY (British) | 2026-03-16 | 74e97ea | [2-change-date-default-to-dd-mm-yyyy-britis](./quick/2-change-date-default-to-dd-mm-yyyy-britis/) |
 | 3 | allow float or int for hlines/vlines in tsplot | 2026-03-16 | 3582058 | [3-allow-float-or-int-for-hlines-vlines-in-](./quick/3-allow-float-or-int-for-hlines-vlines-in-/) |
+| 4 | add ylim/xlim/ylim_lhs/ylim_rhs to tsplot and tsplot_dual | 2026-03-16 | 29311dd | [4-add-ylim-xlim-to-tsplot-and-ylim-lhs-yli](./quick/4-add-ylim-xlim-to-tsplot-and-ylim-lhs-yli/) |
 
 ### Blockers/Concerns
 
@@ -98,5 +100,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Quick task 3 complete — scalar int/float hlines/vlines normalized to list in tsplot/tsplot_dual
+Stopped at: Quick task 4 complete — ylim/xlim/ylim_lhs/ylim_rhs axis limit parameters added to tsplot and tsplot_dual
 Resume file: None
