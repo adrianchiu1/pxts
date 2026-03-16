@@ -136,6 +136,7 @@ Recent decisions affecting current work:
 
 - Phase 5 added: Bloomberg BDH historical data integration
 - Phase 6 added: Plotly rendering fixes — date axis autoformatting and legend
+- Phase 7 added: Interactive Plotly Time Series Charts
 
 ### Pending Todos
 

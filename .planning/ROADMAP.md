@@ -30,3 +30,14 @@ See full archive: `.planning/milestones/v0.1-ROADMAP.md`
 | 4. Process Closure and Cleanup | v0.1 | 3/3 | Complete | 2026-03-16 |
 | 5. Bloomberg BDH Integration | v0.1 | 2/2 | Complete | 2026-03-16 |
 | 6. Plotly Rendering Fixes | v0.1 | 2/2 | Complete | 2026-03-16 |
+
+
+### Phase 7: Interactive Plotly Time Series Charts
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 7 to break down)
