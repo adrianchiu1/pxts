@@ -657,7 +657,9 @@ def _plot_ts_dual_mpl(df, left, right, title, subtitle, labels, hlines, vlines,
 # ---------------------------------------------------------------------------
 
 def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vlines,
-                         date_format, ylim_lhs=None, ylim_rhs=None, xlim=None, **kwargs):
+                         date_format, ylim_lhs=None, ylim_rhs=None, xlim=None,
+                         annotations=None, rangeslider=True, theme="light",
+                         left_label=None, right_label=None, **kwargs):
     """plotly implementation of plot_ts_dual."""
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
@@ -699,11 +701,38 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
     fig.update_yaxes(tickfont=dict(color=LEFT_COLOR), secondary_y=False)
     fig.update_yaxes(tickfont=dict(color=RIGHT_COLOR), secondary_y=True)
 
+    # Colored axis title text
+    if left_label:
+        fig.update_yaxes(title_text=left_label,
+                         title_font=dict(color=LEFT_COLOR),
+                         secondary_y=False)
+    if right_label:
+        fig.update_yaxes(title_text=right_label,
+                         title_font=dict(color=RIGHT_COLOR),
+                         secondary_y=True)
+
     # Set x-axis type=date (Pitfall 5: must be done via update_xaxes after traces)
     if date_format:
         fig.update_xaxes(type="date", tickformat=date_format)
     else:
         fig.update_xaxes(type="date", tickformatstops=_PLOTLY_TICKFORMATSTOPS)
+
+    # Range selector buttons and rangeslider
+    rangeselector_cfg = dict(
+        buttons=list([
+            dict(count=1,  label="1M",  step="month", stepmode="backward"),
+            dict(count=3,  label="3M",  step="month", stepmode="backward"),
+            dict(count=6,  label="6M",  step="month", stepmode="backward"),
+            dict(count=1,  label="YTD", step="year",  stepmode="todate"),
+            dict(count=1,  label="1Y",  step="year",  stepmode="backward"),
+            dict(step="all", label="All"),
+        ]),
+        bgcolor="rgba(255,255,255,0.8)",
+        activecolor="#0072B2",
+        x=0, y=1.02, xanchor="left", yanchor="bottom",
+    )
+    fig.update_xaxes(rangeselector=rangeselector_cfg,
+                     rangeslider=dict(visible=rangeslider))
 
     if not date_format:
         _add_plotly_year_annotation(fig, df)
@@ -721,6 +750,16 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
             font=dict(size=DEFAULT_FONT_SIZE - 2),
         )
 
+    # Apply dark theme
+    if theme == "dark":
+        from pxts.theme import (DARK_BACKGROUND_COLOR, DARK_PLOT_COLOR,
+                                 DARK_GRID_COLOR, DARK_FONT_COLOR)
+        fig.update_layout(paper_bgcolor=DARK_BACKGROUND_COLOR,
+                          plot_bgcolor=DARK_PLOT_COLOR,
+                          font=dict(color=DARK_FONT_COLOR))
+        fig.update_xaxes(gridcolor=DARK_GRID_COLOR)
+        fig.update_yaxes(gridcolor=DARK_GRID_COLOR)
+
     if hlines:
         _draw_hlines_plotly(fig, hlines)
     if vlines:
@@ -732,6 +771,8 @@ def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vline
         fig.update_layout(yaxis2=dict(range=list(ylim_rhs)))
     if xlim is not None:
         fig.update_xaxes(range=[str(pd.Timestamp(xlim[0])), str(pd.Timestamp(xlim[1]))])
+
+    # annotations parameter accepted but processed in Plan 03
 
     return fig
 
@@ -799,6 +840,8 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
 def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
                 labels: bool = False, hlines=None, vlines=None,
                 date_format=None, ylim_lhs=None, ylim_rhs=None, xlim=None,
+                annotations=None, rangeslider: bool = True, theme: str = "light",
+                left_label: str = None, right_label: str = None,
                 backend=None, **kwargs):
     """Plot time series with two y-axes (left and right).
 
@@ -815,6 +858,14 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
         ylim_lhs: y-axis limits for the left (primary) axis as [lo, hi], or None.
         ylim_rhs: y-axis limits for the right (secondary) axis as [lo, hi], or None.
         xlim: x-axis limits as [date1, date2] (date-like), or None.
+        annotations: list of annotation dicts. "col" key required to specify which
+            y-axis drives y-lookup. Plotly backend only.
+        rangeslider: show rangeslider. Default True. Plotly backend only.
+        theme: "light" (default) or "dark". Plotly backend only.
+        left_label: axis title text for the left (primary) y-axis, colored LEFT_COLOR.
+            None (default) means no axis title.
+        right_label: axis title text for the right (secondary) y-axis, colored RIGHT_COLOR.
+            None (default) means no axis title.
         backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
         **kwargs: forwarded to the underlying plot call.
 
@@ -846,4 +897,6 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
         return _plot_ts_dual_plotly(df, left, right, title, subtitle, labels,
                                     hlines, vlines, date_format,
                                     ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs, xlim=xlim,
-                                    **kwargs)
+                                    annotations=annotations, rangeslider=rangeslider,
+                                    theme=theme, left_label=left_label,
+                                    right_label=right_label, **kwargs)
