@@ -8,7 +8,7 @@ progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 3 of 3 (Documentation and Polish)
-Plan: 0 of ? in current phase
-Status: Phase 3 not started
-Last activity: 2026-03-16 - Completed quick task 4: add ylim/xlim/ylim_lhs/ylim_rhs axis limit parameters to tsplot and tsplot_dual
+Plan: 2 of ? in current phase
+Status: In progress
+Last activity: 2026-03-16 - Completed 03-02: fixed _manual_deconflict docstring and replaced _detect_plotly_tickformat with median-diff algorithm
 
-Progress: [█░░░░░░░░░] ~10%
+Progress: [████░░░░░░] ~40%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [█░░░░░░░░░] ~10%
 | Phase 01-test-suite P03 | 3 | 1 tasks | 1 files |
 | Phase 01-test-suite P05 | 1 | 1 tasks | 2 files |
 | Phase 03-documentation-and-polish P01 | 2 | 2 tasks | 2 files |
+| Phase 03-documentation-and-polish P02 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 03-01]: Parquet removed from read_ts/write_ts descriptions to match CSV-only v0.1 reality
 - [Phase 03-01]: apply_theme() import side-effect documented in __init__.py module docstring with order-of-import note
 - [Phase 03-01]: IS_JUPYTER cached-at-import behavior documented in _backend.py with reload scenario and manual override workaround
+- [03-02]: Median-diff thresholds use >180 for '%Y' and >25 for '%b %Y' — plan code snippet used >3*365 but that doesn't work with median approach; behavior spec is canonical
+- [03-02]: min_spacing_pt parameter name preserved (breaking change risk); docstring updated to document the data-unit misnomer
 
 ### Pending Todos
 
@@ -104,5 +107,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Quick task 4 complete — ylim/xlim/ylim_lhs/ylim_rhs axis limit parameters added to tsplot and tsplot_dual
+Stopped at: Completed 03-02 — _manual_deconflict docstring fix and _detect_plotly_tickformat median-diff algorithm
 Resume file: None

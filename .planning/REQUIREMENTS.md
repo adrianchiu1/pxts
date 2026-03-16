@@ -34,11 +34,11 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 - [x] **DOC-01**: `__init__.py` docstring removes Parquet mention from `read_ts`/`write_ts` description
 - [x] **DOC-02**: `_backend.py` documents `IS_JUPYTER` cached-at-import behavior and its implications
 - [x] **DOC-03**: `__init__.py` documents `apply_theme()` global side-effect at import time
-- [ ] **DOC-04**: `_manual_deconflict` docstring notes the display-coordinate approximation limitation
+- [x] **DOC-04**: `_manual_deconflict` docstring notes the display-coordinate approximation limitation
 
 ### Polish
 
-- [ ] **POL-01**: `_detect_plotly_tickformat` uses median index diff instead of first/last span for tick format selection
+- [x] **POL-01**: `_detect_plotly_tickformat` uses median index diff instead of first/last span for tick format selection
 
 ## v2 Requirements
 
@@ -80,8 +80,8 @@ Requirements for v0.1 release. Each maps to a roadmap phase.
 | DOC-01 | Phase 3 | Complete |
 | DOC-02 | Phase 3 | Complete |
 | DOC-03 | Phase 3 | Complete |
-| DOC-04 | Phase 3 | Pending |
-| POL-01 | Phase 3 | Pending |
+| DOC-04 | Phase 3 | Complete |
+| POL-01 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 18 total
