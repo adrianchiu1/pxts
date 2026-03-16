@@ -124,7 +124,7 @@ class TestReadBdh:
     def test_importerror_without_pdblp(self):
         """ImportError with pip install hint is raised when pdblp is absent."""
         with patch.dict(sys.modules, {"pdblp": None}):
-            with pytest.raises(ImportError, match=r"pip install pxts\[bloomberg\]"):
+            with pytest.raises(ImportError, match=r"pip install pdblp"):
                 read_bdh(["AAPL US Equity"], "20240101")
 
     def test_output_passes_validate_ts(self):

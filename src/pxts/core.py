@@ -27,17 +27,23 @@ def _tz_equal(tz_a, tz_b) -> bool:
 
 
 def validate_ts(df: pd.DataFrame) -> pd.DataFrame:
-    """Validate that df has a DatetimeIndex.
-
+    """Validate that df has a DatetimeIndex, that it is not a MultiIndex, and that the datetime index is unique.
     Returns df unchanged if valid.
     Raises pxtsValidationError (a TypeError subclass) if not.
     """
     if not isinstance(df.index, pd.DatetimeIndex):
         raise pxtsValidationError(
             f"pxts requires a DatetimeIndex. "
-            f"Got {type(df.index).__name__}. "
+            f"Instead index type is {type(df.index).__name__}. "
             f"Use pd.DataFrame(..., index=pd.to_datetime(dates)) to fix."
         )
+    if isinstance(df.index, pd.MultiIndex):
+        raise AttributeError("Index must not be pd.MultiIndex")
+    
+    # Verify that index is unique
+    if not df.index.is_unique:
+        raise AttributeError("Index must be unique")
+    
     return df
 
 

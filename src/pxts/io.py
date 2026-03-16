@@ -216,8 +216,11 @@ def read_bdh(
         import pdblp
     except ImportError:
         raise ImportError(
-            "pdblp required for read_bdh(). Install with: pip install pxts[bloomberg]"
+            "pdblp required for read_bdh(). Install with: pip install pdblp and https://www.bloomberg.com/professional/support/api-library/"
         )
+
+    if isinstance(tickers, str):
+        tickers = [tickers]
 
     start_date = pd.to_datetime(start).strftime("%Y%m%d")
     if end is None:
@@ -225,15 +228,18 @@ def read_bdh(
     else:
         end_date = pd.to_datetime(end).strftime("%Y%m%d")
 
-    con = pdblp.BCon(port=8194, timeout=20)
+    # Establish a connection
+    con = pdblp.BCon(port=8194, timeout=5000)
     con.start()
+
+    # Get historical data for securities and fields
     try:
         raw = con.bdh(tickers, field, start_date, end_date)
     finally:
         con.stop()
 
-    # raw has a MultiIndex column (ticker, field) — select just the field level
-    df = raw.xs(field, axis=1, level=1)
+    data = raw.loc[:,tickers]
+    data.columns = tickers
+    data.index = pd.to_datetime(data.index)
 
-    validate_ts(df)
-    return df
+    return validate_ts(data)
