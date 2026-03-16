@@ -30,14 +30,18 @@ See full archive: `.planning/milestones/v0.1-ROADMAP.md`
 | 4. Process Closure and Cleanup | v0.1 | 3/3 | Complete | 2026-03-16 |
 | 5. Bloomberg BDH Integration | v0.1 | 2/2 | Complete | 2026-03-16 |
 | 6. Plotly Rendering Fixes | v0.1 | 2/2 | Complete | 2026-03-16 |
+| 7. Interactive Plotly Time Series Charts | — | 0/4 | In Progress | — |
 
 
 ### Phase 7: Interactive Plotly Time Series Charts
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Upgrade the Plotly backend of tsplot and tsplot_dual with range navigation (1M/3M/6M/YTD/1Y/All buttons + rangeslider), data point annotations (annotations= parameter + add_annotation() helper), colored dual-axis labels, and tighter visual margins with dark/light theme support.
+**Requirements**: PLT7-01, PLT7-02, PLT7-03, PLT7-04, PLT7-05, PLT7-06, PLT7-07
 **Depends on:** Phase 6
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 7 to break down)
+- [ ] 07-01-PLAN.md — Tighten Plotly template margins and add dark-theme color constants to theme.py
+- [ ] 07-02-PLAN.md — Range nav (buttons + rangeslider), dual-axis labels, and theme wiring in plots.py
+- [ ] 07-03-PLAN.md — Annotation processing helper, add_annotation() public function, __init__.py export
+- [ ] 07-04-PLAN.md — Phase 7 regression tests for all new Plotly features
