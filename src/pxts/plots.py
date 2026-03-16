@@ -35,6 +35,25 @@ _ADJUSTTEXT_WARNED: bool = False
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+def _normalize_lines(value, name: str):
+    """Normalize a scalar int/float hlines/vlines value to a single-element list.
+
+    If value is an int or float (but NOT a bool, since bool is a subclass of int),
+    return [value]. Otherwise return value unchanged so it is passed as-is to
+    _validate_plot_params (which accepts list, dict, or None).
+
+    Args:
+        value: the raw hlines or vlines argument.
+        name: parameter name, used only for context (not raised here).
+
+    Returns:
+        [value] if value is a non-bool numeric scalar, else value unchanged.
+    """
+    if not isinstance(value, bool) and isinstance(value, (int, float)):
+        return [value]
+    return value
+
+
 def _validate_cols(df, cols, param_name: str = "cols") -> None:
     """Raise ValueError if any col in cols is not in df.columns.
 
@@ -61,6 +80,8 @@ def _validate_plot_params(
     """Validate parameter types for tsplot and tsplot_dual.
 
     hlines/vlines accept list, dict, or None (dict is used for labeled reference lines).
+    Scalar int/float values are normalized upstream by _normalize_lines before reaching
+    this function, so they will already be wrapped in a list when validated here.
     title, subtitle, date_format accept str or None.
 
     Raises ValueError with a clear message naming the parameter and expected type.
@@ -551,6 +572,8 @@ def tsplot(df, cols=None, title: str = "", subtitle: str = "",
         ValueError: if any value in cols is not in df.columns.
     """
     validate_ts(df)
+    hlines = _normalize_lines(hlines, "hlines")
+    vlines = _normalize_lines(vlines, "vlines")
     _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot")
     if cols is None:
         cols = list(df.columns)
@@ -593,6 +616,8 @@ def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
         ValueError: if any value in left or right is not in df.columns.
     """
     validate_ts(df)
+    hlines = _normalize_lines(hlines, "hlines")
+    vlines = _normalize_lines(vlines, "vlines")
     _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot_dual")
     _validate_cols(df, left, param_name="left")
     _validate_cols(df, right, param_name="right")
