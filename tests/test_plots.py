@@ -354,3 +354,46 @@ class TestAxisLimits:
         """tsplot_dual(ylim_lhs=42) raises ValueError mentioning 'ylim_lhs'."""
         with pytest.raises(ValueError, match="ylim_lhs"):
             tsplot_dual(ts_df, left=["A"], right=["B"], ylim_lhs=42, backend="matplotlib")
+
+
+# ---------------------------------------------------------------------------
+# DOC-04 / POL-01: _detect_plotly_tickformat — median-diff algorithm
+# ---------------------------------------------------------------------------
+
+class TestDetectPlotlyTickformat:
+    """Tests for _detect_plotly_tickformat using median consecutive-diff algorithm."""
+
+    def _make_df(self, idx):
+        import numpy as np
+        return pd.DataFrame({"v": np.ones(len(idx))}, index=idx)
+
+    def test_daily_5yr_returns_day_format(self):
+        """Dense daily data spanning 5 years: median diff ~1 day → '%b %d'."""
+        from pxts.plots import _detect_plotly_tickformat
+        import numpy as np
+        idx = pd.date_range("2018-01-01", periods=365 * 5, freq="D")
+        df = self._make_df(idx)
+        assert _detect_plotly_tickformat(df) == "%b %d"
+
+    def test_monthly_2yr_returns_month_year_format(self):
+        """Monthly data spanning 2 years: median diff ~30 days → '%b %Y'."""
+        from pxts.plots import _detect_plotly_tickformat
+        import numpy as np
+        idx = pd.date_range("2022-01-01", periods=24, freq="ME")
+        df = self._make_df(idx)
+        assert _detect_plotly_tickformat(df) == "%b %Y"
+
+    def test_annual_5yr_returns_year_format(self):
+        """Annual data spanning 5 years: median diff ~365 days → '%Y'."""
+        from pxts.plots import _detect_plotly_tickformat
+        import numpy as np
+        idx = pd.date_range("2019-01-01", periods=5, freq="YE")
+        df = self._make_df(idx)
+        assert _detect_plotly_tickformat(df) == "%Y"
+
+    def test_single_row_returns_day_format(self):
+        """Single-row DataFrame: no diffs possible → graceful fallback '%b %d'."""
+        from pxts.plots import _detect_plotly_tickformat
+        idx = pd.date_range("2023-01-01", periods=1)
+        df = self._make_df(idx)
+        assert _detect_plotly_tickformat(df) == "%b %d"
