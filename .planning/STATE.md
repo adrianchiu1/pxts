@@ -74,10 +74,10 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 
 ## Current Position
 
-Phase: 7 of 7 (Interactive Plotly Time Series Charts)
-Plan: 4 of 4 in current phase
-Status: Completed
-Last activity: 2026-03-17 - Completed 07-04: Phase 7 regression tests — 28 new tests, 154 total pass
+Phase: 8 of 8 (Simplify Plotting API)
+Plan: 1 of 4 in current phase
+Status: In Progress
+Last activity: 2026-03-17 - Completed 08-01: Remove subtitle, rangeslider, theme, annotations from plots.py and __init__.py
 
 Progress: [██████████] 100%
 
@@ -168,12 +168,16 @@ Recent decisions affecting current work:
 - [Phase 07-interactive-plotly-time-series-charts]: y auto-lookup uses to_pytimedelta() list comprehension — TimedeltaIndex.abs() not available on all pandas versions
 - [Phase 07-interactive-plotly-time-series-charts]: secondary_y_cols routing: col in secondary_y_cols maps to yref=y2 in dual-axis annotations
 - [Phase 07-interactive-plotly-time-series-charts]: Editable install (pip install -e) required to fix pytest package resolution: miniconda system-installed pxts shadowed local source
+- [08-01]: rangeslider hardcoded to visible=False in both Plotly renderers — cleaner default, no parameter needed
+- [08-01]: date_format kept in tsplot/tsplot_dual public API and Plotly renderers; removed only from matplotlib renderers (which never used it)
+- [08-01]: rangeselector (1M/3M/6M/YTD/1Y/All nav buttons) preserved unchanged in both Plotly renderers
 
 ### Roadmap Evolution
 
 - Phase 5 added: Bloomberg BDH historical data integration
 - Phase 6 added: Plotly rendering fixes — date axis autoformatting and legend
 - Phase 7 added: Interactive Plotly Time Series Charts
+- Phase 8 added: Simplify plotting API — remove subtitle, rangeslider, theme, date format, and annotation arguments from matplotlib and Plotly charts
 
 ### Pending Todos
 
@@ -197,6 +201,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16
-Stopped at: Completed 06-02 — Plotly Phase 6 regression tests; 56 tests pass
+Last session: 2026-03-17
+Stopped at: Completed 08-01 — Remove subtitle, rangeslider, theme, annotations from plots.py and __init__.py
 Resume file: None

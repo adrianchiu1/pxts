@@ -30,7 +30,8 @@ See full archive: `.planning/milestones/v0.1-ROADMAP.md`
 | 4. Process Closure and Cleanup | v0.1 | 3/3 | Complete | 2026-03-16 |
 | 5. Bloomberg BDH Integration | v0.1 | 2/2 | Complete | 2026-03-16 |
 | 6. Plotly Rendering Fixes | v0.1 | 2/2 | Complete | 2026-03-16 |
-| 7. Interactive Plotly Time Series Charts | 4/4 | Complete   | 2026-03-16 | — |
+| 7. Interactive Plotly Time Series Charts | 4/4 | Complete | 2026-03-16 |
+| 8. Simplify Plotting API | 1/4 | In Progress | — |
 
 
 ### Phase 7: Interactive Plotly Time Series Charts
@@ -45,3 +46,16 @@ Plans:
 - [ ] 07-02-PLAN.md — Range nav (buttons + rangeslider), dual-axis labels, and theme wiring in plots.py (wave 2, depends on 07-01)
 - [ ] 07-03-PLAN.md — Annotation processing helper, add_annotation() public function, __init__.py export (wave 3, depends on 07-02)
 - [x] 07-04-PLAN.md — Phase 7 regression tests for all new Plotly features (wave 4, depends on 07-01/02/03) (completed 2026-03-16)
+
+### Phase 8: Simplify plotting API — remove subtitle, rangeslider, theme, date format, and annotation arguments from matplotlib and Plotly charts
+
+**Goal:** Remove five groups of arguments from tsplot/tsplot_dual and all internal helpers; delete add_annotation() and _apply_plotly_annotations(); update test suite to match simplified API
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 1/4 complete
+
+Plans:
+- [x] 08-01-PLAN.md — Remove subtitle, rangeslider, theme, annotations from plots.py and __init__.py (completed 2026-03-17)
+- [ ] 08-02-PLAN.md — Update test suite to remove calls using removed params
+- [ ] 08-03-PLAN.md — TBD
+- [ ] 08-04-PLAN.md — TBD
