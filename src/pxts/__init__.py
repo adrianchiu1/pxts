@@ -17,7 +17,6 @@ Public API (all accessible via star import):
   IS_JUPYTER                      — bool, True if running in a Jupyter/IPython kernel
   tsplot(df, cols=None, ...)      — plot time series columns as line charts
   tsplot_dual(df, left, right)    — plot time series with dual y-axes
-  add_annotation(fig, x, y=None, text='', col=None) -- add annotation to an existing Plotly figure
 
 The .ts accessor is registered automatically on import of this module.
 Usage: df.ts.set_tz() / df.ts.to_dense(freq='D') / df.ts.infer_freq()
@@ -47,7 +46,7 @@ from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .t
 from pxts.io import read_ts, write_ts, read_bdh  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme  # noqa: E402
-from pxts.plots import tsplot, tsplot_dual, add_annotation  # noqa: E402
+from pxts.plots import tsplot, tsplot_dual  # noqa: E402
 
 apply_theme()  # Runs once at import — registers plotly template + sets matplotlib rcParams
 
@@ -64,7 +63,6 @@ __all__ = [
     "IS_JUPYTER",
     "tsplot",
     "tsplot_dual",
-    "add_annotation",
 ]
 
 __version__ = "0.1.0"
