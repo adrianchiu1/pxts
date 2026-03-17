@@ -34,8 +34,8 @@ class TestTsplotMatplotlib:
         plt.close(fig)
 
     def test_title_and_subtitle(self, ts_df):
-        """title and subtitle rendered without error."""
-        fig = tsplot(ts_df, title="My Title", subtitle="My Subtitle", backend="matplotlib")
+        """title rendered without error."""
+        fig = tsplot(ts_df, title="My Title", backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
@@ -83,8 +83,8 @@ class TestTsplotPlotly:
         assert len(fig.data) == 1
 
     def test_title_and_subtitle(self, ts_df):
-        """title and subtitle → Figure has title set."""
-        fig = tsplot(ts_df, title="My Title", subtitle="My Subtitle", backend="plotly")
+        """title -> Figure has title set."""
+        fig = tsplot(ts_df, title="My Title", backend="plotly")
         assert isinstance(fig, go.Figure)
         assert fig.layout.title.text == "My Title"
 
@@ -176,10 +176,10 @@ class TestTsplotDualMatplotlib:
         plt.close(fig)
 
     def test_title_and_subtitle(self, ts_df):
-        """title and subtitle rendered without error."""
+        """title rendered without error."""
         fig = tsplot_dual(
             ts_df, left=["A"], right=["B"],
-            title="Dual Title", subtitle="Dual Sub",
+            title="Dual Title",
             backend="matplotlib",
         )
         assert isinstance(fig, matplotlib.figure.Figure)
@@ -316,16 +316,6 @@ class TestParameterTypeValidation:
         fig = tsplot(ts_df, title=None, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
-
-    def test_tsplot_subtitle_wrong_type_raises(self, ts_df):
-        """tsplot(subtitle=['a']) → ValueError mentioning 'subtitle'."""
-        with pytest.raises(ValueError, match="subtitle"):
-            tsplot(ts_df, subtitle=["a"], backend="matplotlib")
-
-    def test_tsplot_date_format_wrong_type_raises(self, ts_df):
-        """tsplot(date_format=42) → ValueError mentioning 'date_format'."""
-        with pytest.raises(ValueError, match="date_format"):
-            tsplot(ts_df, date_format=42, backend="matplotlib")
 
 
 # ---------------------------------------------------------------------------
@@ -476,7 +466,7 @@ class TestPlotlyTickformatstops:
 # ---------------------------------------------------------------------------
 
 class TestPhase7RangeNav:
-    """PLT7-01 / PLT7-02: Range selector buttons and rangeslider."""
+    """PLT7-01 / PLT7-02: Range selector buttons."""
 
     def test_tsplot_has_six_range_buttons(self, ts_df):
         """tsplot plotly default -> rangeselector with 6 buttons."""
@@ -492,16 +482,6 @@ class TestPhase7RangeNav:
         for lbl in ["1M", "3M", "6M", "YTD", "1Y", "All"]:
             assert lbl in labels, f"button '{lbl}' missing from {labels}"
 
-    def test_tsplot_rangeslider_visible_by_default(self, ts_df):
-        """tsplot plotly default -> rangeslider visible."""
-        fig = tsplot(ts_df, backend="plotly")
-        assert fig.layout.xaxis.rangeslider.visible is True
-
-    def test_tsplot_rangeslider_opt_out(self, ts_df):
-        """tsplot(rangeslider=False) -> rangeslider not visible."""
-        fig = tsplot(ts_df, rangeslider=False, backend="plotly")
-        assert fig.layout.xaxis.rangeslider.visible is False
-
     def test_tsplot_dual_has_range_buttons(self, ts_df):
         """tsplot_dual plotly default -> rangeselector with 6 buttons."""
         fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
@@ -509,22 +489,9 @@ class TestPhase7RangeNav:
         assert rs is not None, "dual: rangeselector missing"
         assert len(rs.buttons) == 6
 
-    def test_tsplot_dual_rangeslider_opt_out(self, ts_df):
-        """tsplot_dual(rangeslider=False) -> rangeslider not visible."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          rangeslider=False, backend="plotly")
-        assert fig.layout.xaxis.rangeslider.visible is False
 
-    def test_rangeslider_mpl_no_error(self, ts_df):
-        """rangeslider param accepted by matplotlib backend without error."""
-        import matplotlib.figure
-        fig = tsplot(ts_df, rangeslider=False, backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-
-class TestPhase7Theme:
-    """PLT7-03 / PLT7-04: Visual polish and dark theme."""
+class TestPlotlyTemplate:
+    """Plotly pxts template configuration tests."""
 
     def test_plotly_template_has_tighter_margins(self, ts_df):
         """pxts Plotly template margin is set (not default None values)."""
@@ -535,116 +502,6 @@ class TestPhase7Theme:
         assert m.l is not None or m.r is not None, (
             "Template margin not set — whitespace fix not applied"
         )
-
-    def test_theme_light_is_default(self, ts_df):
-        """tsplot(backend='plotly') defaults to light (white) background."""
-        fig = tsplot(ts_df, backend="plotly")
-        # With theme='light', paper_bgcolor should NOT be the dark color
-        assert fig.layout.paper_bgcolor != "#1a1a2e", "Default should not be dark"
-
-    def test_theme_dark_sets_dark_background(self, ts_df):
-        """tsplot(theme='dark') sets dark paper_bgcolor."""
-        fig = tsplot(ts_df, theme="dark", backend="plotly")
-        assert fig.layout.paper_bgcolor == "#1a1a2e", (
-            f"dark theme paper_bgcolor: {fig.layout.paper_bgcolor}"
-        )
-
-    def test_theme_dark_dual(self, ts_df):
-        """tsplot_dual(theme='dark') sets dark paper_bgcolor."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          theme="dark", backend="plotly")
-        assert fig.layout.paper_bgcolor == "#1a1a2e"
-
-    def test_theme_mpl_no_error(self, ts_df):
-        """theme param accepted by matplotlib backend without error."""
-        import matplotlib.figure
-        fig = tsplot(ts_df, theme="dark", backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-
-class TestPhase7Annotations:
-    """PLT7-05 / PLT7-06: Annotation parameter and add_annotation helper."""
-
-    def test_tsplot_annotation_adds_text(self, ts_df):
-        """tsplot(annotations=[{...}]) adds annotation text to Plotly figure."""
-        from pxts.plots import tsplot, add_annotation
-        ann = [{"x": "2024-01-03", "text": "Event"}]
-        fig = tsplot(ts_df, annotations=ann, backend="plotly")
-        texts = [a.text for a in fig.layout.annotations]
-        assert any("Event" in t for t in texts), f"'Event' not in annotations: {texts}"
-
-    def test_tsplot_annotation_showarrow_false(self, ts_df):
-        """Annotations have showarrow=False (text only, no arrow)."""
-        from pxts.plots import tsplot
-        ann = [{"x": "2024-01-03", "text": "Peak"}]
-        fig = tsplot(ts_df, annotations=ann, backend="plotly")
-        # Find the non-year annotation
-        user_anns = [a for a in fig.layout.annotations if "Peak" in (a.text or "")]
-        assert len(user_anns) == 1, f"Expected 1 Peak annotation, got {user_anns}"
-        assert user_anns[0].showarrow is False
-
-    def test_tsplot_annotation_y_auto_lookup(self, ts_df):
-        """Annotation without y key auto-looks up y from nearest data point."""
-        from pxts.plots import tsplot
-        # 2024-01-03 is index position 2, A=3.0
-        ann = [{"x": "2024-01-03", "text": "AutoY"}]
-        fig = tsplot(ts_df, cols=["A"], annotations=ann, backend="plotly")
-        user_anns = [a for a in fig.layout.annotations if "AutoY" in (a.text or "")]
-        assert len(user_anns) == 1
-        # y should be auto-looked up as 3.0 (A value at 2024-01-03)
-        assert abs(user_anns[0].y - 3.0) < 0.01, f"Expected y~3.0, got {user_anns[0].y}"
-
-    def test_tsplot_dual_annotation_with_col(self, ts_df):
-        """tsplot_dual annotation with col key adds annotation to correct axis."""
-        from pxts.plots import tsplot_dual
-        ann = [{"x": "2024-01-03", "text": "Dual", "col": "A"}]
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          annotations=ann, backend="plotly")
-        texts = [a.text for a in fig.layout.annotations]
-        assert any("Dual" in t for t in texts), f"'Dual' not found in {texts}"
-
-    def test_add_annotation_adds_to_figure(self, ts_df):
-        """add_annotation(fig, x, text=...) adds annotation in-place to existing figure."""
-        from pxts.plots import tsplot, add_annotation
-        fig = tsplot(ts_df, backend="plotly")
-        count_before = len(fig.layout.annotations)
-        add_annotation(fig, "2024-01-03", text="PostCall")
-        count_after = len(fig.layout.annotations)
-        assert count_after == count_before + 1, (
-            f"Expected {count_before+1} annotations, got {count_after}"
-        )
-        texts = [a.text for a in fig.layout.annotations]
-        assert any("PostCall" in t for t in texts)
-
-    def test_add_annotation_with_y(self, ts_df):
-        """add_annotation(fig, x, y=2.5, text=...) uses provided y."""
-        from pxts.plots import tsplot, add_annotation
-        fig = tsplot(ts_df, backend="plotly")
-        add_annotation(fig, "2024-01-02", y=2.5, text="Fixed")
-        user_anns = [a for a in fig.layout.annotations if "Fixed" in (a.text or "")]
-        assert len(user_anns) == 1
-        assert abs(user_anns[0].y - 2.5) < 0.01
-
-    def test_add_annotation_exported_from_pxts(self):
-        """add_annotation is importable from pxts top-level package."""
-        from pxts import add_annotation
-        assert callable(add_annotation)
-
-    def test_annotations_wrong_type_raises(self, ts_df):
-        """annotations='bad' raises ValueError mentioning 'annotations'."""
-        with pytest.raises(ValueError, match="annotations"):
-            tsplot(ts_df, annotations="bad", backend="matplotlib")
-
-    def test_annotations_missing_x_raises(self, ts_df):
-        """annotations=[{'text': 'x'}] (no x key) raises ValueError."""
-        with pytest.raises(ValueError, match="annotations"):
-            tsplot(ts_df, annotations=[{"text": "no x key"}], backend="matplotlib")
-
-    def test_annotations_missing_text_raises(self, ts_df):
-        """annotations=[{'x': date}] (no text key) raises ValueError."""
-        with pytest.raises(ValueError, match="annotations"):
-            tsplot(ts_df, annotations=[{"x": "2024-01-01"}], backend="matplotlib")
 
 
 class TestPhase7DualAxisLabels:
