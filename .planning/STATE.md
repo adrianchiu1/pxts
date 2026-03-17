@@ -3,6 +3,19 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
+last_updated: "2026-03-17T02:40:12.466Z"
+progress:
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 6
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
+status: unknown
 last_updated: "2026-03-16T18:02:46.231Z"
 progress:
   total_phases: 1
@@ -75,9 +88,9 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 8 of 8 (Simplify Plotting API)
-Plan: 1 of 4 in current phase
-Status: In Progress
-Last activity: 2026-03-17 - Completed 08-01: Remove subtitle, rangeslider, theme, annotations from plots.py and __init__.py
+Plan: 2 of 2 in current phase
+Status: Complete
+Last activity: 2026-03-17 - Completed 08-02: Update test_plots.py to match simplified API
 
 Progress: [██████████] 100%
 
@@ -115,6 +128,7 @@ Progress: [██████████] 100%
 | Phase 07-interactive-plotly-time-series-charts P02 | 8 | 2 tasks | 3 files |
 | Phase 07-interactive-plotly-time-series-charts P03 | 6 | 2 tasks | 2 files |
 | Phase 07-interactive-plotly-time-series-charts P04 | 7 | 1 tasks | 1 files |
+| Phase 08-simplify-plotting-api P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -171,6 +185,8 @@ Recent decisions affecting current work:
 - [08-01]: rangeslider hardcoded to visible=False in both Plotly renderers — cleaner default, no parameter needed
 - [08-01]: date_format kept in tsplot/tsplot_dual public API and Plotly renderers; removed only from matplotlib renderers (which never used it)
 - [08-01]: rangeselector (1M/3M/6M/YTD/1Y/All nav buttons) preserved unchanged in both Plotly renderers
+- [Phase 08-02]: TestPlotlyTemplate class introduced to preserve margin regression test after TestPhase7Theme deletion
+- [Phase 08-02]: date_format= kept in Plotly tests — Plotly still supports it
 
 ### Roadmap Evolution
 

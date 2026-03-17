@@ -31,7 +31,7 @@ See full archive: `.planning/milestones/v0.1-ROADMAP.md`
 | 5. Bloomberg BDH Integration | v0.1 | 2/2 | Complete | 2026-03-16 |
 | 6. Plotly Rendering Fixes | v0.1 | 2/2 | Complete | 2026-03-16 |
 | 7. Interactive Plotly Time Series Charts | 4/4 | Complete | 2026-03-16 |
-| 8. Simplify Plotting API | 1/4 | In Progress | — |
+| 8. Simplify Plotting API | 2/2 | Complete   | 2026-03-17 |
 
 
 ### Phase 7: Interactive Plotly Time Series Charts
@@ -52,7 +52,7 @@ Plans:
 **Goal:** Remove five groups of arguments from tsplot/tsplot_dual and all internal helpers; delete add_annotation() and _apply_plotly_annotations(); update test suite to match simplified API
 **Requirements**: TBD
 **Depends on:** Phase 7
-**Plans:** 1/4 complete
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 08-01-PLAN.md — Remove subtitle, rangeslider, theme, annotations from plots.py and __init__.py (completed 2026-03-17)
