@@ -270,6 +270,7 @@ def _draw_vlines_mpl(ax, vlines) -> None:
     label_y = y_min + 0.97 * (y_max - y_min)
 
     for label, x_val in items:
+        x_val = pd.Timestamp(x_val)
         line = ax.axvline(x=x_val, linestyle=":", color="gray", linewidth=1)
         if label is not None:
             ax.text(
