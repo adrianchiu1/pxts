@@ -76,12 +76,8 @@ def _resolve_cols(df, yaxis, yaxis2):
     """
     display_names = {}
 
-    # Resolve right_cols from yaxis2
+    # Resolve right_cols from yaxis2 (type already validated by _validate_tsplot_params)
     if yaxis2 is not None:
-        if not isinstance(yaxis2, dict):
-            raise ValueError(
-                f"yaxis2 must be a dict, got {type(yaxis2).__name__}"
-            )
         if "cols" not in yaxis2:
             raise ValueError("yaxis2 must contain a 'cols' key")
         right_cols, right_names = _parse_axis_cols(yaxis2, "yaxis2")
@@ -101,8 +97,11 @@ def _resolve_cols(df, yaxis, yaxis2):
             # No cols specified anywhere — plot all
             left_cols = list(df.columns)
 
-    # Check for overlap
-    overlap = set(left_cols) & set(right_cols)
+    # Check for overlap (skip when single-axis)
+    if right_cols:
+        overlap = set(left_cols) & set(right_cols)
+    else:
+        overlap = set()
     if overlap:
         raise ValueError(
             f"Columns {sorted(overlap)!r} appear in both yaxis['cols'] and yaxis2['cols']. "
@@ -111,11 +110,10 @@ def _resolve_cols(df, yaxis, yaxis2):
 
     # Validate all cols exist in df
     all_cols = left_cols + right_cols
-    available = list(df.columns)
     bad = [c for c in all_cols if c not in df.columns]
     if bad:
         raise ValueError(
-            f"Column(s) {bad!r} not in DataFrame. Available: {available}"
+            f"Column(s) {bad!r} not in DataFrame. Available: {list(df.columns)}"
         )
 
     return left_cols, right_cols, display_names
@@ -175,7 +173,7 @@ def _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dim, titles, annot) -> N
             raise ValueError(f"yaxis must be dict or None, got {type(yaxis).__name__}")
         _validate_axis_range(yaxis.get("range"), "yaxis['range']")
 
-    # yaxis2 (cols validated by _resolve_cols; type checked here for range)
+    # yaxis2 (cols presence validated by _resolve_cols)
     if yaxis2 is not None:
         if not isinstance(yaxis2, dict):
             raise ValueError(f"yaxis2 must be dict or None, got {type(yaxis2).__name__}")
@@ -287,10 +285,11 @@ def _draw_vlines_mpl(ax, vlines) -> None:
 def _apply_sorted_legend_mpl(ax, df, cols, display_names) -> None:
     """Sort legend handles/labels by last value descending, then set legend."""
     sorted_cols = _sorted_cols_by_last_value(df, cols)
+    valid_labels = {_get_display_name(c, display_names) for c in cols}
     handles_dict = {}
     for line in ax.get_lines():
         lbl = line.get_label()
-        if lbl in [_get_display_name(c, display_names) for c in cols]:
+        if lbl in valid_labels:
             handles_dict[lbl] = line
     sorted_display = [_get_display_name(c, display_names) for c in sorted_cols]
     handles = [handles_dict[d] for d in sorted_display if d in handles_dict]
@@ -486,9 +485,9 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     # X-axis config
     xaxis_cfg = dict(type="date")
     xaxis_cfg["rangeselector"] = dict(
-        buttons=list(_RANGE_SELECTOR_BUTTONS),
+        buttons=_RANGE_SELECTOR_BUTTONS,
         bgcolor="rgba(255,255,255,0.8)",
-        activecolor="#0072B2",
+        activecolor=LEFT_COLOR,
         x=0, y=1.02, xanchor="left", yanchor="bottom",
     )
     xaxis_cfg["rangeslider"] = dict(visible=False)
