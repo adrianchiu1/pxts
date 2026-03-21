@@ -242,20 +242,20 @@ class TestAnnotations:
 
 class TestDimension:
     def test_dimension_mpl_default(self, ts_df):
-        """Default dimension: chart area is 550/100=5.5in wide, height=550/1.5/100."""
+        """Default: non-interactive backend uses fallback figsize from defaults."""
         fig = tsplot(ts_df, backend="matplotlib")
         w, h = fig.get_size_inches()
+        # Non-interactive (Agg) falls back to DEFAULT_CHART_WIDTH / DEFAULT_ASPECT_RATIO
         assert w == pytest.approx(5.5)
-        # Total height = chart_h + top_space + bottom_space (> chart_h)
-        assert h > 550 / 1.5 / 100
+        assert h > 0
         plt.close(fig)
 
     def test_dimension_mpl_custom(self, ts_df):
+        """Custom dimension used as fallback in non-interactive backend."""
         fig = tsplot(ts_df, dimension={"width": 800, "aspect_ratio": 2.0}, backend="matplotlib")
         w, h = fig.get_size_inches()
         assert w == pytest.approx(8.0)
-        # chart_h = 800/2.0/100 = 4.0, total h > 4.0
-        assert h > 4.0
+        assert h == pytest.approx(4.0)
         plt.close(fig)
 
     def test_dimension_plotly(self, ts_df):
@@ -333,12 +333,14 @@ class TestSource:
 # ---------------------------------------------------------------------------
 
 class TestAccentLine:
-    def test_accent_line_mpl(self, ts_df):
-        """Figure should have a Line2D artist for the accent line."""
+    def test_no_accent_line_mpl(self, ts_df):
+        """Matplotlib backend should not have an accent line."""
         from matplotlib.lines import Line2D
         fig = tsplot(ts_df, backend="matplotlib")
-        line_artists = [a for a in fig.get_children() if isinstance(a, Line2D)]
-        assert len(line_artists) >= 1
+        # Only Line2D artists at the figure level (not axes) would be accent lines
+        figure_lines = [a for a in fig.get_children()
+                        if isinstance(a, Line2D) and a.axes is None]
+        assert len(figure_lines) == 0
         plt.close(fig)
 
     def test_accent_line_plotly(self, ts_df):
@@ -424,11 +426,12 @@ class TestPlotlyTemplate:
 # ---------------------------------------------------------------------------
 
 class TestFTStyling:
-    def test_no_spines_mpl(self, ts_df):
+    def test_spines_visible_mpl(self, ts_df):
+        """Matplotlib backend uses default spines (all visible)."""
         fig = tsplot(ts_df, backend="matplotlib")
         ax = fig.axes[0]
         for spine in ax.spines.values():
-            assert not spine.get_visible()
+            assert spine.get_visible()
         plt.close(fig)
 
     def test_horizontal_gridlines_only_plotly(self, ts_df):

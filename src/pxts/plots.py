@@ -25,7 +25,6 @@ from pxts.theme import (
     pxts_COLORS,
     BACKGROUND_COLOR,
     GRID_COLOR,
-    GRID_ALPHA,
     DEFAULT_FONT_SIZE,
     FONT_FAMILY,
     FT_FONT_COLOR,
@@ -340,11 +339,6 @@ class LayoutMetrics:
         return self.chart_h_px + self.top_space_px + self.bottom_space_px
 
     @property
-    def font_family_mpl(self) -> list:
-        """Font family as a list for matplotlib (which can't parse CSS strings)."""
-        return [f.strip() for f in self.font_family.split(",")]
-
-    @property
     def left_align_x_plotly(self) -> float:
         """X coordinate in plotly paper space that aligns with y-axis labels."""
         return -(self.left_margin_px * 0.85) / self.chart_w_px
@@ -384,52 +378,6 @@ def _get_display_name(col, display_names):
 # ---------------------------------------------------------------------------
 # Chrome drawing — matplotlib
 # ---------------------------------------------------------------------------
-
-def _draw_accent_line_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
-    """Draw the FT-style accent line at the top of a matplotlib figure."""
-    from matplotlib.lines import Line2D as MplLine2D
-
-    DPI = 100
-    fig_w_px = m.chart_w_px
-    fig_h_px = m.total_h_px
-    accent_x_right = x_left + ACCENT_LINE_LENGTH / fig_w_px
-    accent_y = 1 - m.pad_top_px / fig_h_px
-
-    fig.add_artist(MplLine2D(
-        [x_left, accent_x_right], [accent_y, accent_y],
-        transform=fig.transFigure, color=FT_FONT_COLOR,
-        linewidth=ACCENT_LINE_WIDTH, clip_on=False, solid_capstyle="butt",
-    ))
-
-
-def _draw_title_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
-    """Draw title and subtitle text on a matplotlib figure."""
-    fig_h_px = m.total_h_px
-    text_y = 1 - (m.pad_top_px + m.accent_gap_px) / fig_h_px
-
-    if m.title_main:
-        fig.text(x_left, text_y, m.title_main,
-                 fontsize=m.font_size + 6, fontweight="bold",
-                 color=FT_FONT_COLOR, va="top", ha="left",
-                 fontfamily=m.font_family_mpl)
-        text_y -= m.title_h_px / fig_h_px
-
-    if m.title_sub:
-        fig.text(x_left, text_y, m.title_sub,
-                 fontsize=m.font_size + 2, color=FT_FONT_COLOR,
-                 va="top", ha="left", fontfamily=m.font_family_mpl)
-
-
-def _draw_source_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
-    """Draw source attribution at the bottom of a matplotlib figure."""
-    if not m.source_text:
-        return
-    fig_h_px = m.total_h_px
-    source_y = m.pad_bottom_px / fig_h_px
-    fig.text(x_left, source_y, m.source_text,
-             fontsize=m.font_size - 1, color=FT_FONT_COLOR,
-             va="top", ha="left", fontfamily=m.font_family_mpl)
-
 
 # ---------------------------------------------------------------------------
 # Chrome drawing — plotly
@@ -602,42 +550,51 @@ def _draw_vlines_plotly(fig, vlines) -> None:
 # Matplotlib backend
 # ---------------------------------------------------------------------------
 
+def _is_interactive_backend() -> bool:
+    """Return True if matplotlib is using an interactive (GUI/widget) backend."""
+    import matplotlib
+    backend = matplotlib.get_backend().lower()
+    non_interactive = {"agg", "pdf", "pgf", "ps", "svg", "cairo", "template"}
+    return backend not in non_interactive
+
+
 def _plot_ts_mpl(df, left_cols, right_cols, display_names,
                  xaxis, yaxis, yaxis2, font, dimension, title, annotations,
                  source, **kwargs):
-    """matplotlib implementation — FT-style layout with accent line, titles, source."""
+    """matplotlib implementation — natural mpl style with title, subtitle, source."""
     import matplotlib.pyplot as plt
 
     is_dual = len(right_cols) > 0
-    m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual)
 
-    DPI = 100
-    chart_w_in = m.chart_w_px / DPI
-    chart_h_in = m.chart_h_px / DPI
-    top_space_in = m.top_space_px / DPI
-    bottom_space_in = m.bottom_space_px / DPI
+    # Resolve font settings
+    if font:
+        font_size = font.get("size", DEFAULT_FONT_SIZE)
+        font_family = font.get("family", FONT_FAMILY)
+    else:
+        font_size = DEFAULT_FONT_SIZE
+        font_family = FONT_FAMILY
+    font_family_list = [f.strip() for f in font_family.split(",")]
 
-    fig_w_in = chart_w_in
-    fig_h_in = chart_h_in + top_space_in + bottom_space_in
+    # Resolve title / source text
+    title_main = title.get("main") if title else None
+    title_sub = title.get("sub") or (title.get("subtitle") if title else None) if title else None
+    source_text = ("Source: " + ", ".join(source)) if source else None
 
-    fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=DPI)
+    # Figure creation — let the backend size the figure for interactive use;
+    # fall back to dimension params for non-interactive (savefig) workflows.
+    figsize = None
+    if not _is_interactive_backend():
+        if dimension:
+            w = dimension.get("width", DEFAULT_CHART_WIDTH)
+            ar = dimension.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
+        else:
+            w = DEFAULT_CHART_WIDTH
+            ar = DEFAULT_ASPECT_RATIO
+        figsize = (w / 100, (w / ar) / 100)
 
-    ax_left = 0.06
-    ax_right_margin = 0.04 if not is_dual else 0.08
-    ax_bottom = bottom_space_in / fig_h_in
-    ax_height = chart_h_in / fig_h_in
-    ax_width = 1 - ax_left - ax_right_margin
+    fig, ax1 = plt.subplots(figsize=figsize)
 
-    ax1 = fig.add_axes([ax_left, ax_bottom, ax_width, ax_height])
-
-    for spine in ax1.spines.values():
-        spine.set_visible(False)
-    ax1.grid(True, axis="y", color=GRID_COLOR, alpha=GRID_ALPHA, linewidth=0.6)
-    ax1.grid(False, axis="x")
-    ax1.tick_params(axis="x", colors=FT_FONT_COLOR, labelsize=m.font_size - 2)
-    ax1.tick_params(axis="y", colors=FT_FONT_COLOR, labelsize=m.font_size - 2, pad=8)
-    ax1.set_axisbelow(True)
-
+    # Plot left-axis columns
     for col in left_cols:
         label = _get_display_name(col, display_names)
         plot_kwargs = dict(label=label, **kwargs)
@@ -645,44 +602,28 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
             plot_kwargs["color"] = LEFT_COLOR
         ax1.plot(df.index, df[col], **plot_kwargs)
 
+    # Dual-axis: right-side columns
     ax2 = None
     if is_dual:
         ax2 = ax1.twinx()
-        ax2.grid(False)
-        for spine in ax2.spines.values():
-            spine.set_visible(False)
-        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR, labelsize=m.font_size - 2, pad=8)
+        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR)
         for col in right_cols:
             label = _get_display_name(col, display_names)
             ax2.plot(df.index, df[col], label=label, color=RIGHT_COLOR, **kwargs)
         ax1.tick_params(axis="y", labelcolor=LEFT_COLOR)
 
+    # Legend — sorted by last value, placed by matplotlib's 'best' algorithm
     handles, labels = _build_sorted_legend(ax1, ax2, df, left_cols, right_cols,
                                            display_names)
     if handles:
-        ax1.legend(handles, labels,
-                   loc="lower left", bbox_to_anchor=(0, 1.01),
-                   ncol=len(labels), frameon=False,
-                   fontsize=m.font_size - 1, handlelength=2.5)
+        ax1.legend(handles, labels, loc="best")
 
-    # Chrome elements — shared layout
-    _draw_accent_line_mpl(fig, m, ax_left)
-    _draw_title_mpl(fig, m, ax_left)
-    _draw_source_mpl(fig, m, ax_left)
-
-    if annotations:
-        hlines = _normalize_annot_lines(annotations.get("hline"))
-        vlines = _normalize_annot_lines(annotations.get("vline"))
-        if hlines:
-            _draw_hlines_mpl(ax1, hlines)
-        if vlines:
-            _draw_vlines_mpl(ax1, vlines)
-
+    # Axis configuration
     if yaxis and yaxis.get("range"):
         r = yaxis["range"]
         ax1.set_ylim(r[0], r[1])
     if yaxis and yaxis.get("name"):
-        ax1.set_ylabel(yaxis["name"], color=FT_FONT_COLOR)
+        ax1.set_ylabel(yaxis["name"])
     if yaxis2 and yaxis2.get("range") and ax2:
         r = yaxis2["range"]
         ax2.set_ylim(r[0], r[1])
@@ -692,7 +633,36 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
         r = xaxis["range"]
         ax1.set_xlim(pd.Timestamp(r[0]), pd.Timestamp(r[1]))
     if xaxis and xaxis.get("name"):
-        ax1.set_xlabel(xaxis["name"], color=FT_FONT_COLOR)
+        ax1.set_xlabel(xaxis["name"])
+
+    # Annotations
+    if annotations:
+        hlines = _normalize_annot_lines(annotations.get("hline"))
+        vlines = _normalize_annot_lines(annotations.get("vline"))
+        if hlines:
+            _draw_hlines_mpl(ax1, hlines)
+        if vlines:
+            _draw_vlines_mpl(ax1, vlines)
+
+    # Chrome: title, subtitle, source
+    if title_main:
+        fig.suptitle(title_main, fontsize=font_size + 6, fontweight="bold",
+                     color=FT_FONT_COLOR, x=0.02, ha="left",
+                     fontfamily=font_family_list)
+    if title_sub:
+        # Place subtitle just below suptitle using figure text
+        fig.text(0.02, 0.95, title_sub, fontsize=font_size + 2,
+                 color=FT_FONT_COLOR, ha="left", va="top",
+                 fontfamily=font_family_list,
+                 transform=fig.transFigure)
+    if source_text:
+        fig.text(0.02, 0.01, source_text, fontsize=font_size - 1,
+                 color=FT_FONT_COLOR, ha="left", va="bottom",
+                 fontfamily=font_family_list,
+                 transform=fig.transFigure)
+
+    fig.tight_layout(rect=[0, 0.03 if source_text else 0,
+                           1, 0.93 if title_main else 1])
 
     return fig
 
