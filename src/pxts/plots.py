@@ -625,7 +625,7 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
         ax2.grid(False)
         for spine in ax2.spines.values():
             spine.set_visible(False)
-        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR, labelsize=m.font_size - 2)
+        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR, labelsize=m.font_size - 2, pad=8)
         for col in right_cols:
             label = _get_display_name(col, display_names)
             ax2.plot(df.index, df[col], label=label, color=RIGHT_COLOR, **kwargs)
@@ -765,7 +765,12 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
 
     if is_dual:
         fig.update_yaxes(tickfont=dict(color=LEFT_COLOR), secondary_y=False)
-        fig.update_yaxes(tickfont=dict(color=RIGHT_COLOR), secondary_y=True)
+        fig.update_yaxes(
+            tickfont=dict(color=RIGHT_COLOR),
+            ticksuffix="  ",
+            showgrid=False,
+            secondary_y=True,
+        )
         if yaxis2 and yaxis2.get("name"):
             fig.update_yaxes(
                 title_text=yaxis2["name"],
