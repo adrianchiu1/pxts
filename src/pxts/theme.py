@@ -68,7 +68,7 @@ DEFAULT_CHART_WIDTH: int = 600
 DEFAULT_ASPECT_RATIO: float = 1.5
 
 # Accent line: short bar at top-left (pixels)
-ACCENT_LINE_LENGTH: int = 40
+ACCENT_LINE_LENGTH: int = 60
 
 
 # ---------------------------------------------------------------------------

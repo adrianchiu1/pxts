@@ -207,7 +207,7 @@ def _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dimension,
         main = title.get("main")
         if main is not None and not isinstance(main, str):
             raise ValueError(f"title['main'] must be str or None, got {type(main).__name__}")
-        sub = title.get("sub")
+        sub = title.get("sub") or title.get("subtitle")
         if sub is not None and not isinstance(sub, str):
             raise ValueError(f"title['sub'] must be str or None, got {type(sub).__name__}")
 
@@ -268,9 +268,10 @@ def _resolve_font(font):
 
 
 def _resolve_title(title):
-    """Extract main and sub from title dict."""
+    """Extract main and sub from title dict. Accepts 'sub' or 'subtitle' key."""
     if title:
-        return title.get("main"), title.get("sub")
+        sub = title.get("sub") or title.get("subtitle")
+        return title.get("main"), sub
     return None, None
 
 
@@ -401,7 +402,8 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
         spine.set_visible(False)
     ax1.grid(True, axis="y", color=GRID_COLOR, alpha=GRID_ALPHA, linewidth=0.6)
     ax1.grid(False, axis="x")
-    ax1.tick_params(axis="both", colors=FT_FONT_COLOR, labelsize=font_size - 1)
+    ax1.tick_params(axis="x", colors=FT_FONT_COLOR, labelsize=font_size - 1)
+    ax1.tick_params(axis="y", colors=FT_FONT_COLOR, labelsize=font_size - 1, pad=8)
     ax1.set_axisbelow(True)
 
     # --- Plot left series ---
@@ -593,13 +595,14 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             )
 
     # --- Layout margins ---
-    top_margin = 20  # base
+    top_margin = 20  # base padding above accent line
     if title_main:
-        top_margin += 30
+        top_margin += 34
     if title_sub:
-        top_margin += 22
-    top_margin += 30  # legend + range selector space
-    top_margin += 8   # accent line + padding
+        top_margin += 24
+    top_margin += 28  # legend row
+    top_margin += 28  # range selector row
+    top_margin += 10  # accent line thickness + gap
 
     bottom_margin = 40
     if source_text:
@@ -612,6 +615,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     total_h = int(chart_h_px) + top_margin + bottom_margin
 
     # --- X-axis config with range selector ---
+    # Range selector sits just above chart (y=1.0), legend sits above that (y=1.07)
     xaxis_cfg = dict(
         type="date",
         showgrid=False,
@@ -634,12 +638,15 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         font=dict(family=font_family, size=font_size, color=FT_FONT_COLOR),
         legend=dict(
             orientation="h",
-            x=0, y=1.02,
+            x=0, y=1.07,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=font_size - 1, color=FT_FONT_COLOR),
         ),
-        yaxis=dict(showgrid=True, gridcolor=GRID_COLOR, zeroline=False),
+        yaxis=dict(
+            showgrid=True, gridcolor=GRID_COLOR, zeroline=False,
+            ticksuffix="  ",  # small gap between y-axis labels and gridlines
+        ),
     )
 
     if not is_dual:
@@ -655,9 +662,11 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             parts.append(
                 f"<span style='font-size:{sub_size}px; font-weight:normal'>{title_sub}</span>"
             )
+        # Align title with y-axis labels (left margin area)
+        title_x = left_margin * 0.1 / total_w
         layout_kwargs["title"] = dict(
             text="<br>".join(parts),
-            x=0, xanchor="left",
+            x=title_x, xanchor="left",
             font=dict(color=FT_FONT_COLOR, size=font_size + 6, family=font_family),
         )
 
@@ -671,12 +680,14 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             color=FT_FONT_COLOR,
         ))
 
-    # --- Accent line (short bar, top-left) ---
+    # --- Accent line (short bar, top-left, aligned with title/y-axis labels) ---
     accent_y = 1 + (top_margin - 5) / chart_h_px
-    accent_x1 = ACCENT_LINE_LENGTH / chart_w_px  # 40px as fraction of chart width
+    # paper x=0 is plot area left edge; shift left into margin to align with y-labels
+    accent_x0 = -(left_margin * 0.85) / chart_w_px
+    accent_x1 = accent_x0 + ACCENT_LINE_LENGTH / chart_w_px
     fig.add_shape(
         type="line",
-        x0=0, x1=accent_x1, y0=accent_y, y1=accent_y,
+        x0=accent_x0, x1=accent_x1, y0=accent_y, y1=accent_y,
         xref="paper", yref="paper",
         line=dict(color=FT_FONT_COLOR, width=ACCENT_LINE_WIDTH),
     )
