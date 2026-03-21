@@ -8,7 +8,7 @@ import pandas as pd
 
 from pxts.core import infer_freq, set_tz, to_dense, validate_ts  # noqa: F401
 from pxts.io import write_ts as _write_ts, read_bdh as _read_bdh
-from pxts.plots import tsplot as _plot, tsplot_dual as _plot_dual
+from pxts.plots import tsplot as _plot
 
 
 @pd.api.extensions.register_dataframe_accessor("ts")
@@ -54,9 +54,14 @@ class TsAccessor:
     def plot(
         self,
         cols=None,
-        title: str = "",
-        hlines=None,
-        vlines=None,
+        *,
+        xaxis=None,
+        yaxis=None,
+        yaxis2=None,
+        font=None,
+        dim=None,
+        titles=None,
+        annot=None,
         backend=None,
         **kwargs: Any,
     ):
@@ -64,31 +69,13 @@ class TsAccessor:
         return _plot(
             self._obj,
             cols=cols,
-            title=title,
-            hlines=hlines,
-            vlines=vlines,
-            backend=backend,
-            **kwargs,
-        )
-
-    def plot_dual(
-        self,
-        left,
-        right,
-        title: str = "",
-        hlines=None,
-        vlines=None,
-        backend=None,
-        **kwargs: Any,
-    ):
-        """Plot time series with two y-axes. See pxts.plots.tsplot_dual for details."""
-        return _plot_dual(
-            self._obj,
-            left=left,
-            right=right,
-            title=title,
-            hlines=hlines,
-            vlines=vlines,
+            xaxis=xaxis,
+            yaxis=yaxis,
+            yaxis2=yaxis2,
+            font=font,
+            dim=dim,
+            titles=titles,
+            annot=annot,
             backend=backend,
             **kwargs,
         )

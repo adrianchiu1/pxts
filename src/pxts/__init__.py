@@ -15,8 +15,7 @@ Public API (all accessible via star import):
   read_bdh(tickers, start, field='PX_LAST', end=None) — fetch Bloomberg BDH data
   get_backend()                   — return active backend name ('plotly' or 'matplotlib')
   IS_JUPYTER                      — bool, True if running in a Jupyter/IPython kernel
-  tsplot(df, cols=None, ...)      — plot time series columns as line charts
-  tsplot_dual(df, left, right)    — plot time series with dual y-axes
+  tsplot(df, cols=None, ...)      — plot time series (single or dual axis via yaxis2)
 
 The .ts accessor is registered automatically on import of this module.
 Usage: df.ts.set_tz() / df.ts.to_dense(freq='D') / df.ts.infer_freq()
@@ -46,7 +45,7 @@ from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .t
 from pxts.io import read_ts, write_ts, read_bdh  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme  # noqa: E402
-from pxts.plots import tsplot, tsplot_dual  # noqa: E402
+from pxts.plots import tsplot  # noqa: E402
 
 apply_theme()  # Runs once at import — registers plotly template + sets matplotlib rcParams
 
@@ -62,7 +61,6 @@ __all__ = [
     "get_backend",
     "IS_JUPYTER",
     "tsplot",
-    "tsplot_dual",
 ]
 
 __version__ = "0.1.0"

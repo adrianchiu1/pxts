@@ -1,4 +1,4 @@
-"""Unit tests for pxts.plots: tsplot and tsplot_dual, both matplotlib and plotly backends.
+"""Unit tests for pxts.plots: unified tsplot function.
 
 Rendering is mocked via matplotlib.use("Agg") (non-interactive) and by passing
 explicit backend= parameters, bypassing get_backend() entirely.
@@ -12,342 +12,338 @@ import plotly.graph_objects as go
 import pandas as pd
 import pytest
 
-from pxts.plots import tsplot, tsplot_dual
+from pxts.plots import tsplot
 from pxts.exceptions import pxtsValidationError
 
 
 # ---------------------------------------------------------------------------
-# tsplot — matplotlib backend
+# Single-axis — matplotlib
 # ---------------------------------------------------------------------------
 
-class TestTsplotMatplotlib:
+class TestTsplotSingleMpl:
     def test_default_cols_returns_figure(self, ts_df):
-        """Default cols (None) → plots all columns, returns matplotlib Figure."""
         fig = tsplot(ts_df, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_explicit_cols_returns_figure(self, ts_df):
-        """Explicit cols=["A"] → returns Figure."""
+    def test_explicit_cols(self, ts_df):
         fig = tsplot(ts_df, cols=["A"], backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_title(self, ts_df):
-        """title rendered without error."""
-        fig = tsplot(ts_df, title="My Title", backend="matplotlib")
+    def test_dict_cols_display_names(self, ts_df):
+        fig = tsplot(ts_df, cols={"Alpha": "A"}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
+        # Legend should use display name
+        ax = fig.axes[0]
+        legend_texts = [t.get_text() for t in ax.get_legend().get_texts()]
+        assert "Alpha" in legend_texts
         plt.close(fig)
 
-    def test_hlines_as_list(self, ts_df):
-        """hlines as list → horizontal lines drawn without error."""
-        fig = tsplot(ts_df, hlines=[1.0, 3.0], backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    def test_hlines_as_dict(self, ts_df):
-        """hlines as dict → horizontal lines with labels drawn without error."""
-        fig = tsplot(ts_df, hlines={"low": 1.0, "high": 4.0}, backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    def test_vlines_as_list(self, ts_df):
-        """vlines as list → vertical lines drawn without error."""
-        vline_date = pd.Timestamp("2024-01-03")
-        fig = tsplot(ts_df, vlines=[vline_date], backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    def test_unknown_col_raises_value_error(self, ts_df):
-        """Unknown col → raises ValueError containing column name."""
+    def test_unknown_col_raises(self, ts_df):
         with pytest.raises(ValueError, match="UNKNOWN"):
             tsplot(ts_df, cols=["UNKNOWN"], backend="matplotlib")
 
 
 # ---------------------------------------------------------------------------
-# tsplot — plotly backend
+# Single-axis — plotly
 # ---------------------------------------------------------------------------
 
-class TestTsplotPlotly:
+class TestTsplotSinglePlotly:
     def test_default_cols_returns_figure(self, ts_df):
-        """Default cols → returns plotly Figure with one trace per column."""
         fig = tsplot(ts_df, backend="plotly")
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == len(ts_df.columns)
 
-    def test_explicit_cols_returns_figure(self, ts_df):
-        """Explicit cols=["A"] → returns plotly Figure with one trace."""
+    def test_explicit_cols(self, ts_df):
         fig = tsplot(ts_df, cols=["A"], backend="plotly")
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 1
 
-    def test_title(self, ts_df):
-        """title -> Figure has title set."""
-        fig = tsplot(ts_df, title="My Title", backend="plotly")
-        assert isinstance(fig, go.Figure)
-        assert fig.layout.title.text == "My Title"
+    def test_dict_cols_display_names(self, ts_df):
+        fig = tsplot(ts_df, cols={"Alpha": "A"}, backend="plotly")
+        assert fig.data[0].name == "Alpha"
 
-    def test_hlines_as_list(self, ts_df):
-        """hlines as list → Figure has shape/annotation added."""
-        fig = tsplot(ts_df, hlines=[1.0, 3.0], backend="plotly")
-        assert isinstance(fig, go.Figure)
-        # Two hlines should produce two shapes
-        assert len(fig.layout.shapes) == 2
-
-    def test_unknown_col_raises_value_error(self, ts_df):
-        """Unknown col → raises ValueError."""
-        with pytest.raises(ValueError, match="UNKNOWN"):
-            tsplot(ts_df, cols=["UNKNOWN"], backend="plotly")
-
-    def test_showlegend_true_in_layout(self, ts_df):
-        """tsplot plotly → showlegend=True is set in the pxts template layout."""
+    def test_showlegend_true_in_template(self, ts_df):
         fig = tsplot(ts_df, backend="plotly")
-        template_showlegend = fig.layout.template.layout.showlegend
-        assert template_showlegend is True
+        assert fig.layout.template.layout.showlegend is True
 
 
 # ---------------------------------------------------------------------------
-# tsplot_dual — matplotlib backend
+# Dual-axis — matplotlib (via yaxis2)
 # ---------------------------------------------------------------------------
 
-class TestTsplotDualMatplotlib:
-    def test_left_and_right_returns_figure(self, ts_df):
-        """left=["A"], right=["B"] → returns Figure, no error."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="matplotlib")
+class TestTsplotDualMpl:
+    def test_dual_returns_figure(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_title(self, ts_df):
-        """title rendered without error."""
-        fig = tsplot_dual(
-            ts_df, left=["A"], right=["B"],
-            title="Dual Title",
-            backend="matplotlib",
-        )
+    def test_cols_none_auto_excludes(self, ts_df):
+        """cols=None + yaxis2 → left gets A, right gets B."""
+        fig = tsplot(ts_df, yaxis2={"cols": ["B"]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_dual_has_two_axes(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="matplotlib")
+        assert len(fig.axes) == 2
         plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# tsplot_dual — plotly backend
+# Dual-axis — plotly (via yaxis2)
 # ---------------------------------------------------------------------------
 
 class TestTsplotDualPlotly:
-    def test_left_and_right_returns_figure(self, ts_df):
-        """left=["A"], right=["B"] → returns plotly Figure with two traces."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
+    def test_dual_returns_figure(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="plotly")
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
 
-    def test_showlegend_true_in_layout(self, ts_df):
-        """tsplot_dual plotly → showlegend=True is set in the pxts template layout."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
-        template_showlegend = fig.layout.template.layout.showlegend
-        assert template_showlegend is True
+    def test_cols_none_auto_excludes(self, ts_df):
+        fig = tsplot(ts_df, yaxis2={"cols": ["B"]}, backend="plotly")
+        assert isinstance(fig, go.Figure)
+        # Should have 2 traces: A on left, B on right
+        assert len(fig.data) == 2
+
+    def test_yaxis2_name_sets_title(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"],
+                     yaxis2={"cols": ["B"], "name": "Pressure"},
+                     backend="plotly")
+        assert fig.layout.yaxis2.title.text == "Pressure"
+
+    def test_yaxis_name_sets_left_title(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"],
+                     yaxis={"name": "Energy"},
+                     yaxis2={"cols": ["B"]},
+                     backend="plotly")
+        assert fig.layout.yaxis.title.text == "Energy"
+
+    def test_showlegend_true_in_template(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="plotly")
+        assert fig.layout.template.layout.showlegend is True
 
 
 # ---------------------------------------------------------------------------
-# Validation tests (backend-agnostic — use matplotlib for simplicity)
+# Cols resolution
+# ---------------------------------------------------------------------------
+
+class TestColsResolution:
+    def test_overlap_raises(self, ts_df):
+        with pytest.raises(ValueError, match="appear in both"):
+            tsplot(ts_df, cols=["A", "B"], yaxis2={"cols": ["A"]}, backend="matplotlib")
+
+    def test_yaxis2_without_cols_key_raises(self, ts_df):
+        with pytest.raises(ValueError, match="cols"):
+            tsplot(ts_df, yaxis2={"range": [0, 10]}, backend="matplotlib")
+
+    def test_yaxis2_not_dict_raises(self, ts_df):
+        with pytest.raises(ValueError, match="yaxis2 must be dict"):
+            tsplot(ts_df, yaxis2=["B"], backend="matplotlib")
+
+    def test_cols_wrong_type_raises(self, ts_df):
+        with pytest.raises(ValueError, match="cols must be"):
+            tsplot(ts_df, cols="A", backend="matplotlib")
+
+    def test_dict_cols_with_dict_yaxis2_cols(self, ts_df):
+        fig = tsplot(ts_df,
+                     cols={"Alpha": "A"},
+                     yaxis2={"cols": {"Beta": "B"}},
+                     backend="plotly")
+        names = [t.name for t in fig.data]
+        assert "Alpha" in names
+        assert "Beta" in names
+
+
+# ---------------------------------------------------------------------------
+# Validation
 # ---------------------------------------------------------------------------
 
 class TestValidation:
     def test_non_datetime_index_raises(self, bad_df):
-        """Non-DatetimeIndex df → raises pxtsValidationError."""
         with pytest.raises(pxtsValidationError):
             tsplot(bad_df, backend="matplotlib")
 
-    def test_unknown_col_in_cols_raises(self, ts_df):
-        """Unknown column in cols → raises ValueError."""
+    def test_unknown_col_raises(self, ts_df):
         with pytest.raises(ValueError, match="NOPE"):
             tsplot(ts_df, cols=["NOPE"], backend="matplotlib")
 
-    def test_unknown_col_in_left_raises(self, ts_df):
-        """Unknown column in left → raises ValueError."""
-        with pytest.raises(ValueError, match="NOPE"):
-            tsplot_dual(ts_df, left=["NOPE"], right=["B"], backend="matplotlib")
+    def test_xaxis_range_not_date_raises(self, ts_df):
+        with pytest.raises(ValueError, match="xaxis"):
+            tsplot(ts_df, xaxis={"range": [1, 2]}, backend="matplotlib")
+
+    def test_yaxis_range_wrong_length_raises(self, ts_df):
+        with pytest.raises(ValueError, match="yaxis"):
+            tsplot(ts_df, yaxis={"range": [1, 2, 3]}, backend="matplotlib")
+
+    def test_yaxis_not_dict_raises(self, ts_df):
+        with pytest.raises(ValueError, match="yaxis must be dict"):
+            tsplot(ts_df, yaxis="bad", backend="matplotlib")
+
+    def test_titles_not_dict_raises(self, ts_df):
+        with pytest.raises(ValueError, match="titles must be dict"):
+            tsplot(ts_df, titles="bad", backend="matplotlib")
+
+    def test_annot_hline_wrong_type_raises(self, ts_df):
+        with pytest.raises(ValueError, match="annot"):
+            tsplot(ts_df, annot={"hline": "bad"}, backend="matplotlib")
 
 
 # ---------------------------------------------------------------------------
-# FIX-05: parameter type validation in tsplot and tsplot_dual
+# Annotations (hline / vline)
 # ---------------------------------------------------------------------------
 
-class TestParameterTypeValidation:
-    def test_hlines_scalar_float(self, ts_df):
-        """tsplot(hlines=42.0) → succeeds (scalar normalized to [42.0])."""
-        fig = tsplot(ts_df, hlines=42.0, backend="matplotlib")
+class TestAnnot:
+    def test_hline_list_mpl(self, ts_df):
+        fig = tsplot(ts_df, annot={"hline": [1.0, 3.0]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_hlines_scalar_int(self, ts_df):
-        """tsplot(hlines=0) → succeeds (int zero normalized to [0])."""
-        fig = tsplot(ts_df, hlines=0, backend="matplotlib")
+    def test_hline_dict_mpl(self, ts_df):
+        fig = tsplot(ts_df, annot={"hline": {"low": 1.0, "high": 4.0}}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_hlines_bool_raises(self, ts_df):
-        """tsplot(hlines=True) → ValueError (bool excluded from scalar normalization)."""
-        with pytest.raises(ValueError, match="hlines"):
-            tsplot(ts_df, hlines=True, backend="matplotlib")
-
-    def test_tsplot_title_wrong_type_raises(self, ts_df):
-        """tsplot(title=123) → ValueError mentioning 'title'."""
-        with pytest.raises(ValueError, match="title"):
-            tsplot(ts_df, title=123, backend="matplotlib")
-
-    def test_tsplot_dual_vlines_wrong_type_raises(self, ts_df):
-        """tsplot_dual(vlines='bad') → ValueError mentioning 'vlines'."""
-        with pytest.raises(ValueError, match="vlines"):
-            tsplot_dual(ts_df, left=["A"], right=["B"], vlines="bad", backend="matplotlib")
-
-    def test_tsplot_valid_params_no_error(self, ts_df):
-        """tsplot(hlines=None, title='OK') → no error."""
-        fig = tsplot(ts_df, hlines=None, title="OK", backend="matplotlib")
+    def test_vline_list_mpl(self, ts_df):
+        fig = tsplot(ts_df, annot={"vline": [pd.Timestamp("2024-01-03")]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_tsplot_hlines_list_valid(self, ts_df):
-        """tsplot(hlines=[1.0, 2.0]) → no error."""
-        fig = tsplot(ts_df, hlines=[1.0, 2.0], backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
+    def test_hline_list_plotly(self, ts_df):
+        fig = tsplot(ts_df, annot={"hline": [1.0, 3.0]}, backend="plotly")
+        assert len(fig.layout.shapes) == 2
 
-    def test_tsplot_title_none_valid(self, ts_df):
-        """tsplot(title=None) → no error (None is valid)."""
-        fig = tsplot(ts_df, title=None, backend="matplotlib")
+    def test_hline_scalar_normalized(self, ts_df):
+        """Scalar hline value is normalized to list."""
+        fig = tsplot(ts_df, annot={"hline": 42.0}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# QUICK-4: ylim / xlim / ylim_lhs / ylim_rhs axis limit parameters
+# Dim
 # ---------------------------------------------------------------------------
 
-class TestAxisLimits:
-    # --- tsplot ylim/xlim matplotlib ---
-    def test_tsplot_ylim_list_mpl(self, ts_df):
-        """tsplot(ylim=[0,10], backend='matplotlib') returns Figure with y-axis restricted."""
-        fig = tsplot(ts_df, ylim=[0, 10], backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
+class TestDim:
+    def test_dim_mpl(self, ts_df):
+        fig = tsplot(ts_df, dim={"width": 800, "height": 400}, backend="matplotlib")
+        w, h = fig.get_size_inches()
+        assert w == pytest.approx(8.0)
+        assert h == pytest.approx(4.0)
+        plt.close(fig)
+
+    def test_dim_plotly(self, ts_df):
+        fig = tsplot(ts_df, dim={"width": 800, "height": 400}, backend="plotly")
+        assert fig.layout.width == 800
+        assert fig.layout.height == 400
+
+
+# ---------------------------------------------------------------------------
+# Font
+# ---------------------------------------------------------------------------
+
+class TestFont:
+    def test_font_plotly(self, ts_df):
+        fig = tsplot(ts_df, font={"size": 18}, backend="plotly")
+        assert fig.layout.font.size == 18
+
+
+# ---------------------------------------------------------------------------
+# Titles
+# ---------------------------------------------------------------------------
+
+class TestTitles:
+    def test_title_mpl(self, ts_df):
+        fig = tsplot(ts_df, titles={"title": "My Title"}, backend="matplotlib")
+        assert fig._suptitle.get_text() == "My Title"
+        plt.close(fig)
+
+    def test_title_plotly(self, ts_df):
+        fig = tsplot(ts_df, titles={"title": "My Title"}, backend="plotly")
+        assert fig.layout.title.text == "My Title"
+
+    def test_title_and_subtitle_plotly(self, ts_df):
+        fig = tsplot(ts_df, titles={"title": "Main", "subtitle": "Sub"}, backend="plotly")
+        assert "Main" in fig.layout.title.text
+        assert "Sub" in fig.layout.title.text
+
+    def test_subtitle_mpl(self, ts_df):
+        fig = tsplot(ts_df, titles={"title": "Main", "subtitle": "Sub"}, backend="matplotlib")
+        ax = fig.axes[0]
+        assert ax.get_title() == "Sub"
+        plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Range selector (plotly)
+# ---------------------------------------------------------------------------
+
+class TestRangeSelector:
+    def test_six_range_buttons(self, ts_df):
+        fig = tsplot(ts_df, backend="plotly")
+        rs = fig.layout.xaxis.rangeselector
+        assert rs is not None
+        assert len(rs.buttons) == 6
+
+    def test_range_button_labels(self, ts_df):
+        fig = tsplot(ts_df, backend="plotly")
+        labels = [b.label for b in fig.layout.xaxis.rangeselector.buttons]
+        for lbl in ["1M", "3M", "6M", "YTD", "1Y", "All"]:
+            assert lbl in labels
+
+    def test_dual_has_range_buttons(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="plotly")
+        rs = fig.layout.xaxis.rangeselector
+        assert rs is not None
+        assert len(rs.buttons) == 6
+
+
+# ---------------------------------------------------------------------------
+# Axis ranges
+# ---------------------------------------------------------------------------
+
+class TestAxisRanges:
+    def test_yaxis_range_mpl(self, ts_df):
+        fig = tsplot(ts_df, yaxis={"range": [0, 10]}, backend="matplotlib")
         ax = fig.axes[0]
         lo, hi = ax.get_ylim()
         assert lo == pytest.approx(0)
         assert hi == pytest.approx(10)
         plt.close(fig)
 
-    def test_tsplot_ylim_tuple_mpl(self, ts_df):
-        """tsplot(ylim=(0,10)) tuple also accepted."""
-        fig = tsplot(ts_df, ylim=(0, 10), backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    def test_tsplot_xlim_mpl(self, ts_df):
-        """tsplot(xlim=[date1, date2], backend='matplotlib') returns Figure."""
-        fig = tsplot(
-            ts_df,
-            xlim=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")],
-            backend="matplotlib",
-        )
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    def test_tsplot_ylim_none_mpl(self, ts_df):
-        """tsplot(ylim=None) returns Figure without error (default behaviour)."""
-        fig = tsplot(ts_df, ylim=None, backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    # --- tsplot ylim/xlim plotly ---
-    def test_tsplot_ylim_plotly(self, ts_df):
-        """tsplot(ylim=[0,10], backend='plotly') returns Figure with yaxis.range."""
-        fig = tsplot(ts_df, ylim=[0, 10], backend="plotly")
-        assert isinstance(fig, go.Figure)
+    def test_yaxis_range_plotly(self, ts_df):
+        fig = tsplot(ts_df, yaxis={"range": [0, 10]}, backend="plotly")
         assert list(fig.layout.yaxis.range) == [0, 10]
 
-    def test_tsplot_xlim_plotly(self, ts_df):
-        """tsplot(xlim=[date1, date2], backend='plotly') returns plotly Figure."""
-        fig = tsplot(
-            ts_df,
-            xlim=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")],
-            backend="plotly",
-        )
+    def test_xaxis_range_mpl(self, ts_df):
+        fig = tsplot(ts_df,
+                     xaxis={"range": [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")]},
+                     backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_xaxis_range_plotly(self, ts_df):
+        fig = tsplot(ts_df,
+                     xaxis={"range": [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")]},
+                     backend="plotly")
         assert isinstance(fig, go.Figure)
 
-    # --- tsplot_dual ylim_lhs / ylim_rhs / xlim ---
-    def test_tsplot_dual_ylim_lhs_mpl(self, ts_df):
-        """tsplot_dual(ylim_lhs=[0,5]) returns Figure."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], ylim_lhs=[0, 5], backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
+    def test_yaxis2_range_plotly(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"],
+                     yaxis2={"cols": ["B"], "range": [0, 10]},
+                     backend="plotly")
+        assert list(fig.layout.yaxis2.range) == [0, 10]
+
+    def test_yaxis2_range_mpl(self, ts_df):
+        fig = tsplot(ts_df, cols=["A"],
+                     yaxis2={"cols": ["B"], "range": [0, 10]},
+                     backend="matplotlib")
+        ax2 = fig.axes[1]  # secondary axis
+        lo, hi = ax2.get_ylim()
+        assert lo == pytest.approx(0)
+        assert hi == pytest.approx(10)
         plt.close(fig)
-
-    def test_tsplot_dual_ylim_rhs_mpl(self, ts_df):
-        """tsplot_dual(ylim_rhs=[0,5]) returns Figure."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], ylim_rhs=[0, 5], backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    def test_tsplot_dual_xlim_mpl(self, ts_df):
-        """tsplot_dual(xlim=[date1, date2]) returns Figure."""
-        fig = tsplot_dual(
-            ts_df,
-            left=["A"], right=["B"],
-            xlim=[pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-05")],
-            backend="matplotlib",
-        )
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
-
-    def test_tsplot_dual_ylim_lhs_plotly(self, ts_df):
-        """tsplot_dual(ylim_lhs=[0,5], backend='plotly') returns go.Figure."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], ylim_lhs=[0, 5], backend="plotly")
-        assert isinstance(fig, go.Figure)
-
-    # --- validation errors ---
-    def test_tsplot_ylim_wrong_type_raises(self, ts_df):
-        """tsplot(ylim='bad') raises ValueError mentioning 'ylim'."""
-        with pytest.raises(ValueError, match="ylim"):
-            tsplot(ts_df, ylim="bad", backend="matplotlib")
-
-    def test_tsplot_ylim_wrong_length_raises(self, ts_df):
-        """tsplot(ylim=[1,2,3]) raises ValueError mentioning 'ylim'."""
-        with pytest.raises(ValueError, match="ylim"):
-            tsplot(ts_df, ylim=[1, 2, 3], backend="matplotlib")
-
-    def test_tsplot_xlim_not_date_raises(self, ts_df):
-        """tsplot(xlim=[1, 2]) raises ValueError mentioning 'xlim' (not date-like)."""
-        with pytest.raises(ValueError, match="xlim"):
-            tsplot(ts_df, xlim=[1, 2], backend="matplotlib")
-
-    def test_tsplot_dual_ylim_lhs_wrong_type_raises(self, ts_df):
-        """tsplot_dual(ylim_lhs=42) raises ValueError mentioning 'ylim_lhs'."""
-        with pytest.raises(ValueError, match="ylim_lhs"):
-            tsplot_dual(ts_df, left=["A"], right=["B"], ylim_lhs=42, backend="matplotlib")
-
-
-# ---------------------------------------------------------------------------
-# Range selector buttons (plotly)
-# ---------------------------------------------------------------------------
-
-class TestRangeSelector:
-    def test_tsplot_has_six_range_buttons(self, ts_df):
-        """tsplot plotly default -> rangeselector with 6 buttons."""
-        fig = tsplot(ts_df, backend="plotly")
-        rs = fig.layout.xaxis.rangeselector
-        assert rs is not None, "rangeselector missing"
-        assert len(rs.buttons) == 6, f"expected 6 buttons, got {len(rs.buttons)}"
-
-    def test_tsplot_range_button_labels(self, ts_df):
-        """tsplot plotly -> buttons labeled 1M, 3M, 6M, YTD, 1Y, All."""
-        fig = tsplot(ts_df, backend="plotly")
-        labels = [b.label for b in fig.layout.xaxis.rangeselector.buttons]
-        for lbl in ["1M", "3M", "6M", "YTD", "1Y", "All"]:
-            assert lbl in labels, f"button '{lbl}' missing from {labels}"
-
-    def test_tsplot_dual_has_range_buttons(self, ts_df):
-        """tsplot_dual plotly default -> rangeselector with 6 buttons."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
-        rs = fig.layout.xaxis.rangeselector
-        assert rs is not None, "dual: rangeselector missing"
-        assert len(rs.buttons) == 6
 
 
 # ---------------------------------------------------------------------------
@@ -355,60 +351,8 @@ class TestRangeSelector:
 # ---------------------------------------------------------------------------
 
 class TestPlotlyTemplate:
-    def test_plotly_template_has_tighter_margins(self, ts_df):
-        """pxts Plotly template margin is set (not default None values)."""
+    def test_template_has_tighter_margins(self):
         import plotly.io as pio
         template = pio.templates["pxts"]
         m = template.layout.margin
-        assert m.l is not None or m.r is not None, (
-            "Template margin not set — whitespace fix not applied"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Dual axis labels (plotly)
-# ---------------------------------------------------------------------------
-
-class TestDualAxisLabels:
-    def test_left_label_sets_yaxis_title(self, ts_df):
-        """left_label='Energy' sets primary y-axis title text."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          left_label="Energy", backend="plotly")
-        yaxis_title = fig.layout.yaxis.title.text
-        assert yaxis_title == "Energy"
-
-    def test_left_label_title_colored_left_color(self, ts_df):
-        """left_label title font color matches LEFT_COLOR."""
-        from pxts.plots import LEFT_COLOR
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          left_label="Energy", backend="plotly")
-        title_color = fig.layout.yaxis.title.font.color
-        assert title_color == LEFT_COLOR
-
-    def test_right_label_sets_yaxis2_title(self, ts_df):
-        """right_label='Steam' sets secondary y-axis title text."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          right_label="Steam", backend="plotly")
-        yaxis2_title = fig.layout.yaxis2.title.text
-        assert yaxis2_title == "Steam"
-
-    def test_right_label_title_colored_right_color(self, ts_df):
-        """right_label title font color matches RIGHT_COLOR."""
-        from pxts.plots import RIGHT_COLOR
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          right_label="Steam", backend="plotly")
-        title_color = fig.layout.yaxis2.title.font.color
-        assert title_color == RIGHT_COLOR
-
-    def test_no_labels_means_no_axis_title(self, ts_df):
-        """tsplot_dual with no left_label/right_label -> no y-axis title set."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
-        assert not fig.layout.yaxis.title.text
-
-    def test_left_right_labels_mpl_no_error(self, ts_df):
-        """left_label/right_label accepted by matplotlib backend without error."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"],
-                          left_label="LHS", right_label="RHS",
-                          backend="matplotlib")
-        assert isinstance(fig, matplotlib.figure.Figure)
-        plt.close(fig)
+        assert m.l is not None or m.r is not None

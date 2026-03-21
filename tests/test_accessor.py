@@ -48,13 +48,20 @@ class TestDelegation:
     def test_plot_delegates(self, ts_df):
         import matplotlib.figure
         fig = ts_df.ts.plot(backend="matplotlib")
-        assert fig is not None
+        assert isinstance(fig, matplotlib.figure.Figure)
         plt.close("all")
 
-    def test_plot_dual_delegates(self, ts_df):
-        fig = ts_df.ts.plot_dual(left=["A"], right=["B"], backend="matplotlib")
-        assert fig is not None
+    def test_plot_dual_via_yaxis2(self, ts_df):
+        """plot(yaxis2=...) triggers dual-axis mode."""
+        import matplotlib.figure
+        fig = ts_df.ts.plot(cols=["A"], yaxis2={"cols": ["B"]}, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        assert len(fig.axes) == 2
         plt.close("all")
+
+    def test_plot_dual_no_longer_exists(self, ts_df):
+        """plot_dual() method has been removed."""
+        assert not hasattr(ts_df.ts, "plot_dual")
 
 
 class TestErrorProtocol:
@@ -69,7 +76,6 @@ class TestErrorProtocol:
         from pxts.exceptions import pxtsValidationError
         with pytest.raises(AttributeError):
             _ = bad_df.ts
-        # Ensure it's not a pxtsValidationError (which is a different class)
         try:
             _ = bad_df.ts
         except AttributeError as exc:
