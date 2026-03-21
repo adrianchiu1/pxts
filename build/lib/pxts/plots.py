@@ -586,7 +586,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             )
 
     # --- Layout margins (pixel-precise, top to bottom) ---
-    # 3px top pad | accent line | 5px gap | title | subtitle | 5px gap | legend
+    # 3px top pad | accent line | 5px gap | title | subtitle | 5px gap | legend | range sel
     top_margin = 3                          # top edge to accent line
     top_margin += 30                         # accent line to title
     if title_main:
@@ -594,7 +594,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     if title_sub:
         top_margin += 20                    # subtitle text height
     top_margin += 5                         # subtitle/title to legend
-    top_margin += 22                        # legend row
+    top_margin += 15                        # legend row
 
     bottom_margin = 40
     if source_text:
@@ -621,7 +621,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         font=dict(family=font_family, size=font_size - 1, color=FT_FONT_COLOR),
         legend=dict(
             orientation="h",
-            x=0, y=1.02,
+            x=0, y=0.95,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=font_size - 1, color=FT_FONT_COLOR),
