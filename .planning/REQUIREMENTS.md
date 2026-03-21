@@ -1,0 +1,100 @@
+# Requirements: pxts v0.1 Hardening
+
+**Defined:** 2026-03-15
+**Core Value:** A researcher can `from pxts import *` and confidently load, manipulate, and visualize financial time series — with no hidden bugs and no surprises.
+
+## v1 Requirements
+
+Requirements for v0.1 release. Each maps to a roadmap phase.
+
+### Testing
+
+- [x] **TEST-01**: `tests/` directory exists with pytest-runnable unit tests
+- [x] **TEST-02**: `test_core.py` covers `validate_ts`, `set_tz`, `to_dense`, `infer_freq` — including edge cases
+- [x] **TEST-03**: `test_io.py` covers `read_ts` and `write_ts` — including ambiguous date format paths
+- [x] **TEST-04**: `test_plots.py` covers `tsplot` and `tsplot_dual` for both backends (mocked)
+- [x] **TEST-05**: `test_accessor.py` covers `.ts` accessor methods delegate correctly
+- [x] **TEST-06**: `test_theme.py` covers `apply_theme` without side-effects on other tests
+
+### Dependencies
+
+- [x] **DEP-01**: `cycler` declared as explicit runtime dependency in `pyproject.toml`
+- [x] **DEP-02**: `adjustText` documented as optional install with clear user-facing message when absent
+
+### Bug Fixes
+
+- [x] **FIX-01**: `_detect_date_format` emits `UserWarning` when slash-delimited date is ambiguous (both parts ≤ 12) instead of silently defaulting to US format
+- [x] **FIX-02**: `set_tz` uses proper timezone identity comparison (not string equality) to avoid spurious conversions between semantically equivalent timezones
+- [x] **FIX-03**: `infer_freq` resolves B-vs-D ambiguity via weekday detection — sequences with weekends return `'D'`, sequences without return `'B'`
+- [x] **FIX-04**: `to_dense` normalizes the `freq` alias before the no-op string comparison (so `'1D'` and `'D'` are treated as equivalent)
+- [x] **FIX-05**: `tsplot` and `tsplot_dual` validate `hlines`, `vlines`, `title`, `subtitle`, and `date_format` parameter types with clear error messages
+
+### Documentation Fixes
+
+- [x] **DOC-01**: `__init__.py` docstring removes Parquet mention from `read_ts`/`write_ts` description
+- [x] **DOC-02**: `_backend.py` documents `IS_JUPYTER` cached-at-import behavior and its implications
+- [x] **DOC-03**: `__init__.py` documents `apply_theme()` global side-effect at import time
+- [x] **DOC-04**: `_manual_deconflict` docstring notes the display-coordinate approximation limitation
+
+### Polish
+
+- [x] **POL-01**: `_detect_plotly_tickformat` uses median index diff instead of first/last span for tick format selection
+
+### Plotly Rendering
+
+- [x] **PLOTLY-01**: `tsplot` and `tsplot_dual` use zoom-responsive `tickformatstops` (4-tier: decade/year/month/day) instead of static `tickformat`; `_detect_plotly_tickformat()` removed entirely
+- [x] **PLOTLY-02**: Plotly template sets `showlegend=True` with top-right positioning; legend overlap avoidance extends y-axis when the last value lands in the top 25% of the y-range
+
+## v2 Requirements
+
+### I/O
+
+- **IO-01**: `read_ts` supports Parquet files via pyarrow
+- **IO-02**: `write_ts` supports Parquet output
+
+### Robustness
+
+- **ROB-01**: Upper-bound version constraints on core dependencies (pandas, plotly, matplotlib)
+- **ROB-02**: `_manual_deconflict` uses display coordinates for accurate label spacing
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Parquet I/O | Adds pyarrow dependency complexity; CSV sufficient for v0.1 |
+| adjustText bundling | Intentionally optional with graceful fallback |
+| Dependency upper bounds | Not a bug; opt-in policy deferred |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| TEST-01 | Phase 4 | Complete |
+| TEST-02 | Phase 4 | Complete |
+| TEST-03 | Phase 4 | Complete |
+| TEST-04 | Phase 4 | Complete |
+| TEST-05 | Phase 4 | Complete |
+| TEST-06 | Phase 4 | Complete |
+| DEP-01 | Phase 4 | Complete |
+| DEP-02 | Phase 4 | Complete |
+| FIX-01 | Phase 4 | Complete |
+| FIX-02 | Phase 4 | Complete |
+| FIX-03 | Phase 4 | Complete |
+| FIX-04 | Phase 4 | Complete |
+| FIX-05 | Phase 4 | Complete |
+| DOC-01 | Phase 3 | Complete |
+| DOC-02 | Phase 3 | Complete |
+| DOC-03 | Phase 3 | Complete |
+| DOC-04 | Phase 3 | Complete |
+| POL-01 | Phase 3 | Complete |
+| PLOTLY-01 | Phase 6 | Complete |
+| PLOTLY-02 | Phase 6 | Complete |
+
+**Coverage:**
+- v1 requirements: 20 total
+- Mapped to phases: 20
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-03-15*
+*Last updated: 2026-03-16 — gap closure phases assigned after v0.1 audit*
