@@ -171,11 +171,6 @@ def _apply_matplotlib_theme() -> None:
         from cycler import cycler
 
         plt.rcParams.update({
-            # Font
-            "font.size":        DEFAULT_FONT_SIZE,
-            "axes.labelsize":   DEFAULT_FONT_SIZE,
-            "axes.titlesize":   DEFAULT_FONT_SIZE + 1,
-            "legend.fontsize":  DEFAULT_FONT_SIZE - 1,
             # Color cycle — FT palette, aligned with Plotly colorway
             "axes.prop_cycle":  cycler(color=pxts_COLORS),
         })

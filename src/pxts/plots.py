@@ -550,49 +550,20 @@ def _draw_vlines_plotly(fig, vlines) -> None:
 # Matplotlib backend
 # ---------------------------------------------------------------------------
 
-def _is_interactive_backend() -> bool:
-    """Return True if matplotlib is using an interactive (GUI/widget) backend."""
-    import matplotlib
-    backend = matplotlib.get_backend().lower()
-    non_interactive = {"agg", "pdf", "pgf", "ps", "svg", "cairo", "template"}
-    return backend not in non_interactive
-
-
 def _plot_ts_mpl(df, left_cols, right_cols, display_names,
                  xaxis, yaxis, yaxis2, font, dimension, title, annotations,
                  source, **kwargs):
-    """matplotlib implementation — natural mpl style with title, subtitle, source."""
+    """matplotlib implementation — relies on mpl defaults for natural look."""
     import matplotlib.pyplot as plt
 
     is_dual = len(right_cols) > 0
-
-    # Resolve font settings
-    if font:
-        font_size = font.get("size", DEFAULT_FONT_SIZE)
-        font_family = font.get("family", FONT_FAMILY)
-    else:
-        font_size = DEFAULT_FONT_SIZE
-        font_family = FONT_FAMILY
-    font_family_list = [f.strip() for f in font_family.split(",")]
 
     # Resolve title / source text
     title_main = title.get("main") if title else None
     title_sub = title.get("sub") or (title.get("subtitle") if title else None) if title else None
     source_text = ("Source: " + ", ".join(source)) if source else None
 
-    # Figure creation — let the backend size the figure for interactive use;
-    # fall back to dimension params for non-interactive (savefig) workflows.
-    figsize = None
-    if not _is_interactive_backend():
-        if dimension:
-            w = dimension.get("width", DEFAULT_CHART_WIDTH)
-            ar = dimension.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
-        else:
-            w = DEFAULT_CHART_WIDTH
-            ar = DEFAULT_ASPECT_RATIO
-        figsize = (w / 100, (w / ar) / 100)
-
-    fig, ax1 = plt.subplots(figsize=figsize)
+    fig, ax1 = plt.subplots()
 
     # Plot left-axis columns
     for col in left_cols:
@@ -617,6 +588,17 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
                                            display_names)
     if handles:
         ax1.legend(handles, labels, loc="best")
+
+    # Title and subtitle — use ax.set_title so tight_layout handles spacing
+    if title_main and title_sub:
+        ax1.set_title(f"{title_main}\n{title_sub}", fontweight="bold")
+    elif title_main:
+        ax1.set_title(title_main, fontweight="bold")
+
+    # Source — place at bottom of figure
+    if source_text:
+        fig.text(0.01, 0.01, source_text, fontsize="small",
+                 ha="left", va="bottom", transform=fig.transFigure)
 
     # Axis configuration
     if yaxis and yaxis.get("range"):
@@ -644,25 +626,7 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
         if vlines:
             _draw_vlines_mpl(ax1, vlines)
 
-    # Chrome: title, subtitle, source
-    if title_main:
-        fig.suptitle(title_main, fontsize=font_size + 6, fontweight="bold",
-                     color=FT_FONT_COLOR, x=0.02, ha="left",
-                     fontfamily=font_family_list)
-    if title_sub:
-        # Place subtitle just below suptitle using figure text
-        fig.text(0.02, 0.95, title_sub, fontsize=font_size + 2,
-                 color=FT_FONT_COLOR, ha="left", va="top",
-                 fontfamily=font_family_list,
-                 transform=fig.transFigure)
-    if source_text:
-        fig.text(0.02, 0.01, source_text, fontsize=font_size - 1,
-                 color=FT_FONT_COLOR, ha="left", va="bottom",
-                 fontfamily=font_family_list,
-                 transform=fig.transFigure)
-
-    fig.tight_layout(rect=[0, 0.03 if source_text else 0,
-                           1, 0.93 if title_main else 1])
+    fig.tight_layout()
 
     return fig
 
