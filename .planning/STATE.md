@@ -3,44 +3,109 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-16T08:26:15.219Z"
+last_updated: "2026-03-17T02:43:18.087Z"
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 12
-  completed_plans: 12
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 6
 ---
 
 ---
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: completed
-last_updated: "2026-03-16T05:53:25Z"
+status: unknown
+last_updated: "2026-03-17T02:40:12.466Z"
 progress:
-  total_phases: 5
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 6
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-16T18:02:46.231Z"
+progress:
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 4
+  completed_plans: 4
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-16T17:55:38.155Z"
+progress:
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 4
+  completed_plans: 4
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-16T16:18:37.462Z"
+progress:
+  total_phases: 6
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 14
+  completed_plans: 14
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-16T15:37:11.135Z"
+progress:
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 14
+  completed_plans: 14
+---
+
+---
+gsd_state_version: 1.0
+milestone: v0.1
+milestone_name: milestone
+status: in-progress
+last_updated: "2026-03-16T08:28:50Z"
+progress:
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-15)
+See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** A researcher can `from pxts import *` and confidently load, manipulate, and visualize financial time series — with no hidden bugs and no surprises.
-**Current focus:** Phase 5 — Bloomberg BDH Historical Data Integration
+**Current focus:** Planning next milestone — v0.1 shipped 2026-03-16
 
 ## Current Position
 
-Phase: 5 of 5 (Bloomberg BDH Historical Data Integration)
+Phase: 8 of 8 (Simplify Plotting API)
 Plan: 2 of 2 in current phase
-Status: Completed
-Last activity: 2026-03-16 - Completed quick task 5: commit manual changes to core.py and io.py
+Status: Complete
+Last activity: 2026-03-17 - Completed 08-02: Update test_plots.py to match simplified API
 
-Progress: [██████████] ~100%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -70,6 +135,13 @@ Progress: [██████████] ~100%
 | Phase 04-process-closure P02 | 3 | 3 tasks | 1 files |
 | Phase 05-bloomberg-bdh-historical-data-integration P01 | 2 | 2 tasks | 4 files |
 | Phase 05-bloomberg-bdh-historical-data-integration P02 | 2 | 1 tasks | 1 files |
+| Phase 06-plotly-rendering-fixes P01 | 6 | 2 tasks | 3 files |
+| Phase 06-plotly-rendering-fixes PP02 | 5 | 1 tasks | 1 files |
+| Phase 07-interactive-plotly-time-series-charts P01 | 4 | 1 tasks | 1 files |
+| Phase 07-interactive-plotly-time-series-charts P02 | 8 | 2 tasks | 3 files |
+| Phase 07-interactive-plotly-time-series-charts P03 | 6 | 2 tasks | 2 files |
+| Phase 07-interactive-plotly-time-series-charts P04 | 7 | 1 tasks | 1 files |
+| Phase 08-simplify-plotting-api P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -112,10 +184,29 @@ Recent decisions affecting current work:
 - [05-01]: BCon try/finally pattern ensures con.stop() is always called even if con.bdh() raises an exception
 - [05-01]: xs(field, axis=1, level=1) reshapes MultiIndex columns returned by pdblp.BCon.bdh() to wide-format with one column per Bloomberg ticker
 - [Phase 05-bloomberg-bdh-historical-data-integration]: patch.dict(sys.modules) required for lazy-import mocks: patch('pxts.io.pdblp') fails because pdblp is imported inside the function body, not at module level
+- [06-01]: tickformatstops replaces _detect_plotly_tickformat — zoom-responsive date labels instead of static format detection
+- [06-01]: _extend_yaxis_for_legend not called in _plot_ts_dual_plotly — dual-axis charts have independent left/right y ranges
+- [06-01]: Tests for deleted _detect_plotly_tickformat replaced with TestPlotlyTickformatstops covering new constant and integration
+- [Phase 06-02]: showlegend assertion checks fig.layout.template.layout.showlegend: pxts sets showlegend in Plotly template, not top-level fig.layout — template values must be accessed via the template object
+- [Phase 07-01]: margin=dict(l=60, r=40, t=50, b=50) in pxts Plotly template: accommodates tick labels, title, and axis labels while eliminating excessive whitespace
+- [Phase 07-01]: Dark theme constants (DARK_BACKGROUND_COLOR, DARK_PLOT_COLOR, DARK_GRID_COLOR, DARK_FONT_COLOR) defined in theme.py as single source of truth for Plans 02/03 to import
+- [Phase 07-02]: rangeslider=True default: interactive charts show rangeslider by default; opt-out via rangeslider=False preserves backward compat
+- [Phase 07-02]: annotations param accepted as no-op in Plan 02 signatures; Plan 03 adds processing logic
+- [Phase 07-interactive-plotly-time-series-charts]: y auto-lookup uses to_pytimedelta() list comprehension — TimedeltaIndex.abs() not available on all pandas versions
+- [Phase 07-interactive-plotly-time-series-charts]: secondary_y_cols routing: col in secondary_y_cols maps to yref=y2 in dual-axis annotations
+- [Phase 07-interactive-plotly-time-series-charts]: Editable install (pip install -e) required to fix pytest package resolution: miniconda system-installed pxts shadowed local source
+- [08-01]: rangeslider hardcoded to visible=False in both Plotly renderers — cleaner default, no parameter needed
+- [08-01]: date_format kept in tsplot/tsplot_dual public API and Plotly renderers; removed only from matplotlib renderers (which never used it)
+- [08-01]: rangeselector (1M/3M/6M/YTD/1Y/All nav buttons) preserved unchanged in both Plotly renderers
+- [Phase 08-02]: TestPlotlyTemplate class introduced to preserve margin regression test after TestPhase7Theme deletion
+- [Phase 08-02]: date_format= kept in Plotly tests — Plotly still supports it
 
 ### Roadmap Evolution
 
 - Phase 5 added: Bloomberg BDH historical data integration
+- Phase 6 added: Plotly rendering fixes — date axis autoformatting and legend
+- Phase 7 added: Interactive Plotly Time Series Charts
+- Phase 8 added: Simplify plotting API — remove subtitle, rangeslider, theme, date format, and annotation arguments from matplotlib and Plotly charts
 
 ### Pending Todos
 
@@ -139,6 +230,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16
-Stopped at: Completed quick-6 — wrote README.md (121 lines); all content checks passed
+Last session: 2026-03-17
+Stopped at: Completed 08-01 — Remove subtitle, rangeslider, theme, annotations from plots.py and __init__.py
 Resume file: None

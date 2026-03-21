@@ -3,11 +3,7 @@
 Public API:
     tsplot(df, *, xaxis=None, yaxis=None, yaxis2=None, font=None,
            dimension=None, title=None, annotations=None, source=None,
-           labels=False, backend=None, **kwargs)
-
-When labels=True, the legend is replaced with FT-style end-of-line labels:
-series names are placed to the right of each line's last data point,
-colored to match. Ignored in dual-axis mode (falls back to legend with a warning).
+           backend=None, **kwargs)
 
 Column selection is done via yaxis["cols"] and yaxis2["cols"].
 If yaxis2 is provided, the chart becomes dual-axis.
@@ -18,7 +14,6 @@ chart area, source. FT-inspired styling: no spines, horizontal gridlines only.
 """
 
 import inspect
-import warnings
 from dataclasses import dataclass
 from typing import Optional
 
@@ -30,6 +25,7 @@ from pxts.theme import (
     pxts_COLORS,
     BACKGROUND_COLOR,
     GRID_COLOR,
+    GRID_ALPHA,
     DEFAULT_FONT_SIZE,
     FONT_FAMILY,
     FT_FONT_COLOR,
@@ -45,32 +41,6 @@ from pxts.theme import (
 
 LEFT_COLOR: str = pxts_COLORS[0]   # '#0072B2' Blue
 RIGHT_COLOR: str = pxts_COLORS[1]  # '#D55E00' Vermillion
-
-
-def _infer_hover_date_format(idx: pd.DatetimeIndex) -> str:
-    """Return a d3-time-format string appropriate for the data's periodicity.
-
-    Uses the minimum observed timedelta to decide how much precision to show.
-    Falls back to '%Y-%m-%d' if the index has fewer than 2 points.
-    """
-    if len(idx) < 2:
-        return "%Y-%m-%d"
-    diffs = idx.to_series().diff().dropna()
-    min_diff = diffs.min()
-    seconds = min_diff.total_seconds()
-    if seconds < 60:                       # sub-minute
-        return "%Y-%m-%d %H:%M:%S"
-    if seconds < 3600:                     # sub-hour (minute-level)
-        return "%Y-%m-%d %H:%M"
-    if seconds < 86400:                    # sub-day (hourly)
-        return "%Y-%m-%d %H:%M"
-    if seconds < 28 * 86400:              # daily / weekly
-        return "%Y-%m-%d"
-    if seconds < 90 * 86400:             # monthly
-        return "%b %Y"
-    if seconds < 366 * 86400:            # quarterly
-        return "%b %Y"
-    return "%Y"                           # annual or coarser
 
 
 # ---------------------------------------------------------------------------
@@ -287,8 +257,7 @@ class LayoutMetrics:
     right_margin_px: int = 20
 
     @classmethod
-    def from_params(cls, dimension, font, title, source, *, is_dual: bool = False,
-                    labels_margin_px: int = 0, use_labels: bool = False):
+    def from_params(cls, dimension, font, title, source, *, is_dual: bool = False):
         """Build LayoutMetrics from user-facing parameter dicts."""
         if dimension:
             w = dimension.get("width", DEFAULT_CHART_WIDTH)
@@ -313,13 +282,6 @@ class LayoutMetrics:
 
         source_text = ("Source: " + ", ".join(source)) if source else None
 
-        if labels_margin_px > 0:
-            right_margin = labels_margin_px
-        elif is_dual:
-            right_margin = 60
-        else:
-            right_margin = 20
-
         return cls(
             chart_w_px=w,
             chart_h_px=w / ar,
@@ -331,9 +293,7 @@ class LayoutMetrics:
             title_h_px=32 if title_main else 0,
             sub_h_px=24 if title_sub else 0,
             source_h_px=24 if source_text else 0,
-            right_margin_px=right_margin,
-            legend_h_px=0 if use_labels else 28,
-            legend_gap_px=0 if use_labels else 6,
+            right_margin_px=60 if is_dual else 20,
         )
 
     @property
@@ -352,6 +312,11 @@ class LayoutMetrics:
     @property
     def total_h_px(self) -> float:
         return self.chart_h_px + self.top_space_px + self.bottom_space_px
+
+    @property
+    def font_family_mpl(self) -> list:
+        """Font family as a list for matplotlib (which can't parse CSS strings)."""
+        return [f.strip() for f in self.font_family.split(",")]
 
     @property
     def left_align_x_plotly(self) -> float:
@@ -390,52 +355,55 @@ def _get_display_name(col, display_names):
     return display_names.get(col, col)
 
 
-def _nudge_label_positions(y_positions, min_gap):
-    """Nudge y-positions apart so no two labels overlap.
-
-    Uses iterative repulsion: sort by y, then push apart any pair that is
-    closer than min_gap. Repeats until stable (max 50 iterations).
-
-    Args:
-        y_positions: list of (index, y_value) tuples.
-        min_gap: minimum vertical distance between label centres.
-
-    Returns:
-        dict mapping original index -> nudged y value.
-    """
-    items = sorted(y_positions, key=lambda t: t[1])
-
-    for _ in range(50):
-        moved = False
-        for i in range(1, len(items)):
-            idx_a, ya = items[i - 1]
-            idx_b, yb = items[i]
-            gap = yb - ya
-            if gap < min_gap:
-                shift = (min_gap - gap) / 2
-                items[i - 1] = (idx_a, ya - shift)
-                items[i] = (idx_b, yb + shift)
-                moved = True
-        if not moved:
-            break
-
-    return {idx: y for idx, y in items}
-
-
-def _estimate_label_width_px(labels, font_size):
-    """Estimate the pixel width of the longest label string.
-
-    Uses a rough heuristic of 0.6 * font_size per character, plus a small pad.
-    """
-    if not labels:
-        return 0
-    max_chars = max(len(lbl) for lbl in labels)
-    return int(max_chars * font_size * 0.6) + 10
-
-
 # ---------------------------------------------------------------------------
 # Chrome drawing — matplotlib
 # ---------------------------------------------------------------------------
+
+def _draw_accent_line_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
+    """Draw the FT-style accent line at the top of a matplotlib figure."""
+    from matplotlib.lines import Line2D as MplLine2D
+
+    DPI = 100
+    fig_w_px = m.chart_w_px
+    fig_h_px = m.total_h_px
+    accent_x_right = x_left + ACCENT_LINE_LENGTH / fig_w_px
+    accent_y = 1 - m.pad_top_px / fig_h_px
+
+    fig.add_artist(MplLine2D(
+        [x_left, accent_x_right], [accent_y, accent_y],
+        transform=fig.transFigure, color=FT_FONT_COLOR,
+        linewidth=ACCENT_LINE_WIDTH, clip_on=False, solid_capstyle="butt",
+    ))
+
+
+def _draw_title_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
+    """Draw title and subtitle text on a matplotlib figure."""
+    fig_h_px = m.total_h_px
+    text_y = 1 - (m.pad_top_px + m.accent_gap_px) / fig_h_px
+
+    if m.title_main:
+        fig.text(x_left, text_y, m.title_main,
+                 fontsize=m.font_size + 6, fontweight="bold",
+                 color=FT_FONT_COLOR, va="top", ha="left",
+                 fontfamily=m.font_family_mpl)
+        text_y -= m.title_h_px / fig_h_px
+
+    if m.title_sub:
+        fig.text(x_left, text_y, m.title_sub,
+                 fontsize=m.font_size + 2, color=FT_FONT_COLOR,
+                 va="top", ha="left", fontfamily=m.font_family_mpl)
+
+
+def _draw_source_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
+    """Draw source attribution at the bottom of a matplotlib figure."""
+    if not m.source_text:
+        return
+    fig_h_px = m.total_h_px
+    source_y = m.pad_bottom_px / fig_h_px
+    fig.text(x_left, source_y, m.source_text,
+             fontsize=m.font_size - 1, color=FT_FONT_COLOR,
+             va="top", ha="left", fontfamily=m.font_family_mpl)
+
 
 # ---------------------------------------------------------------------------
 # Chrome drawing — plotly
@@ -562,59 +530,6 @@ def _build_sorted_legend(ax1, ax2, df, left_cols, right_cols, display_names):
     return handles, labels
 
 
-def _draw_line_labels_mpl(ax, df, cols, display_names, font_size):
-    """Draw FT-style end-of-line labels for matplotlib.
-
-    Places each series name to the right of the chart at the y-coordinate of
-    its last data point, with collision avoidance via _nudge_label_positions.
-    """
-    lines = ax.get_lines()
-    label_to_line = {line.get_label(): line for line in lines}
-
-    # Collect last y-values and display names, paired with colour
-    entries = []  # (col, display_name, last_y, color)
-    for col in cols:
-        dname = _get_display_name(col, display_names)
-        last_y = df[col].dropna().iloc[-1] if not df[col].dropna().empty else None
-        if last_y is None:
-            continue
-        color = label_to_line[dname].get_color() if dname in label_to_line else None
-        entries.append((dname, last_y, color))
-
-    if not entries:
-        return
-
-    # Nudge positions — min_gap based on font size relative to data range
-    y_min, y_max = ax.get_ylim()
-    data_range = y_max - y_min
-    # Approximate: font_size in points → fraction of data range
-    # A line of text ~1.4em high; axes typically ~400px → scale accordingly
-    ax_height_px = ax.get_figure().get_size_inches()[1] * ax.get_figure().dpi
-    ax_bbox = ax.get_position()
-    ax_height_data_px = ax_bbox.height * ax_height_px
-    min_gap = data_range * (font_size * 1.4) / ax_height_data_px if ax_height_data_px > 0 else 0
-
-    y_positions = [(i, e[1]) for i, e in enumerate(entries)]
-    nudged = _nudge_label_positions(y_positions, min_gap)
-
-    x_pos = df.index[-1]
-    for i, (dname, _last_y, color) in enumerate(entries):
-        y = nudged[i]
-        ax.annotate(
-            dname,
-            xy=(x_pos, y),
-            xycoords="data",
-            xytext=(6, 0),
-            textcoords="offset points",
-            color=color,
-            fontsize=font_size - 1,
-            fontweight="bold",
-            va="center",
-            ha="left",
-            clip_on=False,
-        )
-
-
 # ---------------------------------------------------------------------------
 # Annotation helpers — plotly
 # ---------------------------------------------------------------------------
@@ -657,83 +572,46 @@ def _draw_vlines_plotly(fig, vlines) -> None:
             )
 
 
-def _draw_line_labels_plotly(fig, df, cols, display_names, font_size, m):
-    """Draw FT-style end-of-line labels for plotly.
-
-    Places each series name to the right of the plot area at the y-coordinate
-    of its last data point, with collision avoidance via _nudge_label_positions.
-    """
-    # Collect the colour assigned to each trace by matching name
-    trace_colors = {}
-    for trace in fig.data:
-        trace_colors[trace.name] = trace.line.color if trace.line and trace.line.color else None
-
-    entries = []  # (display_name, last_y, color)
-    for col in cols:
-        dname = _get_display_name(col, display_names)
-        series = df[col].dropna()
-        if series.empty:
-            continue
-        last_y = float(series.iloc[-1])
-        color = trace_colors.get(dname)
-        entries.append((dname, last_y, color))
-
-    if not entries:
-        return
-
-    # Determine y-axis range for nudge gap calculation
-    yaxis_range = fig.layout.yaxis.range
-    if yaxis_range:
-        y_min, y_max = yaxis_range
-    else:
-        all_y = [e[1] for e in entries]
-        y_min, y_max = min(all_y), max(all_y)
-        # Add some padding
-        span = y_max - y_min if y_max != y_min else 1
-        y_min -= span * 0.05
-        y_max += span * 0.05
-
-    data_range = y_max - y_min if y_max != y_min else 1
-    # min_gap: font_size in px relative to chart height in data units
-    min_gap = data_range * (font_size * 1.4) / m.chart_h_px
-
-    y_positions = [(i, e[1]) for i, e in enumerate(entries)]
-    nudged = _nudge_label_positions(y_positions, min_gap)
-
-    for i, (dname, _last_y, color) in enumerate(entries):
-        y = nudged[i]
-        fig.add_annotation(
-            text=f"<b>{dname}</b>",
-            x=1, xref="paper",
-            y=y, yref="y",
-            xanchor="left",
-            yanchor="middle",
-            xshift=6,
-            showarrow=False,
-            font=dict(size=font_size - 1, color=color),
-        )
-
-
 # ---------------------------------------------------------------------------
 # Matplotlib backend
 # ---------------------------------------------------------------------------
 
 def _plot_ts_mpl(df, left_cols, right_cols, display_names,
                  xaxis, yaxis, yaxis2, font, dimension, title, annotations,
-                 source, labels=False, **kwargs):
-    """matplotlib implementation — relies on mpl defaults for natural look."""
+                 source, **kwargs):
+    """matplotlib implementation — FT-style layout with accent line, titles, source."""
     import matplotlib.pyplot as plt
 
     is_dual = len(right_cols) > 0
+    m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual)
 
-    # Resolve title / source text
-    title_main = title.get("main") if title else None
-    title_sub = title.get("sub") or (title.get("subtitle") if title else None) if title else None
-    source_text = ("Source: " + ", ".join(source)) if source else None
+    DPI = 100
+    chart_w_in = m.chart_w_px / DPI
+    chart_h_in = m.chart_h_px / DPI
+    top_space_in = m.top_space_px / DPI
+    bottom_space_in = m.bottom_space_px / DPI
 
-    fig, ax1 = plt.subplots()
+    fig_w_in = chart_w_in
+    fig_h_in = chart_h_in + top_space_in + bottom_space_in
 
-    # Plot left-axis columns
+    fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=DPI)
+
+    ax_left = 0.06
+    ax_right_margin = 0.04 if not is_dual else 0.08
+    ax_bottom = bottom_space_in / fig_h_in
+    ax_height = chart_h_in / fig_h_in
+    ax_width = 1 - ax_left - ax_right_margin
+
+    ax1 = fig.add_axes([ax_left, ax_bottom, ax_width, ax_height])
+
+    for spine in ax1.spines.values():
+        spine.set_visible(False)
+    ax1.grid(True, axis="y", color=GRID_COLOR, alpha=GRID_ALPHA, linewidth=0.6)
+    ax1.grid(False, axis="x")
+    ax1.tick_params(axis="x", colors=FT_FONT_COLOR, labelsize=m.font_size - 2)
+    ax1.tick_params(axis="y", colors=FT_FONT_COLOR, labelsize=m.font_size - 2, pad=8)
+    ax1.set_axisbelow(True)
+
     for col in left_cols:
         label = _get_display_name(col, display_names)
         plot_kwargs = dict(label=label, **kwargs)
@@ -741,52 +619,44 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
             plot_kwargs["color"] = LEFT_COLOR
         ax1.plot(df.index, df[col], **plot_kwargs)
 
-    # Dual-axis: right-side columns
     ax2 = None
     if is_dual:
         ax2 = ax1.twinx()
-        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR)
+        ax2.grid(False)
+        for spine in ax2.spines.values():
+            spine.set_visible(False)
+        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR, labelsize=m.font_size - 2, pad=8)
         for col in right_cols:
             label = _get_display_name(col, display_names)
             ax2.plot(df.index, df[col], label=label, color=RIGHT_COLOR, **kwargs)
         ax1.tick_params(axis="y", labelcolor=LEFT_COLOR)
 
-    # Legend or line labels
-    font_size = font.get("size", DEFAULT_FONT_SIZE) if font else DEFAULT_FONT_SIZE
-    if labels and not is_dual:
-        # Line labels mode: no legend, add right margin for labels
-        display_label_names = [_get_display_name(c, display_names) for c in left_cols]
-        label_width_px = _estimate_label_width_px(display_label_names, font_size)
-        # Convert px to inches (matplotlib uses inches at fig DPI)
-        fig_w, fig_h = fig.get_size_inches()
-        label_margin_inches = label_width_px / fig.dpi
-        fig.set_size_inches(fig_w + label_margin_inches, fig_h)
-        # Adjust right margin so labels are not clipped
-        fig.subplots_adjust(right=fig_w / (fig_w + label_margin_inches))
-        _draw_line_labels_mpl(ax1, df, left_cols, display_names, font_size)
-    else:
-        legend_handles, legend_labels = _build_sorted_legend(
-            ax1, ax2, df, left_cols, right_cols, display_names)
-        if legend_handles:
-            ax1.legend(legend_handles, legend_labels, loc="best")
+    handles, labels = _build_sorted_legend(ax1, ax2, df, left_cols, right_cols,
+                                           display_names)
+    if handles:
+        ax1.legend(handles, labels,
+                   loc="lower left", bbox_to_anchor=(0, 1.01),
+                   ncol=len(labels), frameon=False,
+                   fontsize=m.font_size - 1, handlelength=2.5)
 
-    # Title and subtitle — use ax.set_title so tight_layout handles spacing
-    if title_main and title_sub:
-        ax1.set_title(f"{title_main}\n{title_sub}", fontweight="bold")
-    elif title_main:
-        ax1.set_title(title_main, fontweight="bold")
+    # Chrome elements — shared layout
+    _draw_accent_line_mpl(fig, m, ax_left)
+    _draw_title_mpl(fig, m, ax_left)
+    _draw_source_mpl(fig, m, ax_left)
 
-    # Source — place at bottom of figure
-    if source_text:
-        fig.text(0.01, 0.01, source_text, fontsize="small",
-                 ha="left", va="bottom", transform=fig.transFigure)
+    if annotations:
+        hlines = _normalize_annot_lines(annotations.get("hline"))
+        vlines = _normalize_annot_lines(annotations.get("vline"))
+        if hlines:
+            _draw_hlines_mpl(ax1, hlines)
+        if vlines:
+            _draw_vlines_mpl(ax1, vlines)
 
-    # Axis configuration
     if yaxis and yaxis.get("range"):
         r = yaxis["range"]
         ax1.set_ylim(r[0], r[1])
     if yaxis and yaxis.get("name"):
-        ax1.set_ylabel(yaxis["name"])
+        ax1.set_ylabel(yaxis["name"], color=FT_FONT_COLOR)
     if yaxis2 and yaxis2.get("range") and ax2:
         r = yaxis2["range"]
         ax2.set_ylim(r[0], r[1])
@@ -796,18 +666,7 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
         r = xaxis["range"]
         ax1.set_xlim(pd.Timestamp(r[0]), pd.Timestamp(r[1]))
     if xaxis and xaxis.get("name"):
-        ax1.set_xlabel(xaxis["name"])
-
-    # Annotations
-    if annotations:
-        hlines = _normalize_annot_lines(annotations.get("hline"))
-        vlines = _normalize_annot_lines(annotations.get("vline"))
-        if hlines:
-            _draw_hlines_mpl(ax1, hlines)
-        if vlines:
-            _draw_vlines_mpl(ax1, vlines)
-
-    fig.tight_layout()
+        ax1.set_xlabel(xaxis["name"], color=FT_FONT_COLOR)
 
     return fig
 
@@ -818,23 +677,12 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
 
 def _plot_ts_plotly(df, left_cols, right_cols, display_names,
                     xaxis, yaxis, yaxis2, font, dimension, title, annotations,
-                    source, labels=False, **kwargs):
+                    source, **kwargs):
     """plotly implementation — FT-style layout with accent line, titles, source."""
     import plotly.graph_objects as go
 
     is_dual = len(right_cols) > 0
-    use_labels = labels and not is_dual
-
-    # Compute dynamic right margin for line labels
-    labels_margin_px = 0
-    if use_labels:
-        _font_size = font.get("size", DEFAULT_FONT_SIZE) if font else DEFAULT_FONT_SIZE
-        display_label_names = [_get_display_name(c, display_names) for c in left_cols]
-        labels_margin_px = _estimate_label_width_px(display_label_names, _font_size)
-
-    m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual,
-                                  labels_margin_px=labels_margin_px,
-                                  use_labels=use_labels)
+    m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual)
 
     if is_dual:
         from plotly.subplots import make_subplots
@@ -843,19 +691,13 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     else:
         fig = go.Figure()
 
-    # Unified hover: date header uses the most precise format for the data,
-    # each entry shows "series_name: value".
-    date_fmt = _infer_hover_date_format(df.index)
-    unified_hovertemplate = (
-        "%{fullData.name}: %{y:.4g}<extra></extra>"
-    )
-
     sorted_left = _sorted_cols_by_last_value(df, left_cols)
     for col in sorted_left:
         name = _get_display_name(col, display_names)
+        hovertemplate = f"<b>{name}</b><br>Date: %{{x}}<br>Value: %{{y:.4g}}<extra></extra>"
         trace_kwargs = dict(
             x=df.index, y=df[col], mode="lines",
-            name=name, hovertemplate=unified_hovertemplate,
+            name=name, hovertemplate=hovertemplate,
         )
         if is_dual:
             trace_kwargs["line"] = dict(color=LEFT_COLOR)
@@ -867,10 +709,11 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         sorted_right = _sorted_cols_by_last_value(df, right_cols)
         for col in sorted_right:
             name = _get_display_name(col, display_names)
+            hovertemplate = f"<b>{name}</b><br>Date: %{{x}}<br>Value: %{{y:.4g}}<extra></extra>"
             fig.add_trace(
                 go.Scatter(
                     x=df.index, y=df[col], mode="lines",
-                    name=name, hovertemplate=unified_hovertemplate,
+                    name=name, hovertemplate=hovertemplate,
                     line=dict(color=RIGHT_COLOR),
                 ),
                 secondary_y=True,
@@ -882,48 +725,25 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     total_w = int(m.total_w_px)
     total_h = int(m.total_h_px)
 
-    # Tooltip font is 2pt smaller than axis labels (axis labels = m.font_size - 1)
-    tooltip_font_size = m.font_size - 3
-
     layout_kwargs = dict(
-        hovermode="x unified",
-        xaxis=dict(
-            type="date", showgrid=False,
-            hoverformat=date_fmt,
-            showspikes=True, spikemode="across", spikesnap="cursor",
-            spikedash="dot", spikethickness=1, spikecolor="#999999",
-        ),
-        hoverlabel=dict(
-            bgcolor="white",
-            bordercolor="#cccccc",
-            font=dict(
-                size=tooltip_font_size,
-                family=m.font_family,
-                color=FT_FONT_COLOR,
-            ),
-        ),
+        xaxis=dict(type="date", showgrid=False),
         width=total_w,
         height=total_h,
         margin=dict(l=m.left_margin_px, r=m.right_margin_px,
                     t=top_margin, b=bottom_margin),
         font=dict(family=m.font_family, size=m.font_size - 1, color=FT_FONT_COLOR),
-        yaxis=dict(
-            showgrid=True, gridcolor=GRID_COLOR, zeroline=False,
-            ticksuffix="  ",
-        ),
-    )
-
-    if use_labels:
-        # Labels mode: hide legend and reclaim its vertical space
-        layout_kwargs["showlegend"] = False
-    else:
-        layout_kwargs["legend"] = dict(
+        legend=dict(
             orientation="h",
             x=0, y=0.95,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
-        )
+        ),
+        yaxis=dict(
+            showgrid=True, gridcolor=GRID_COLOR, zeroline=False,
+            ticksuffix="  ",
+        ),
+    )
 
     if not is_dual:
         layout_kwargs["template"] = "pxts"
@@ -985,10 +805,6 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         if vlines:
             _draw_vlines_plotly(fig, vlines)
 
-    # Line labels (after layout is finalised so y-axis range is set)
-    if use_labels:
-        _draw_line_labels_plotly(fig, df, left_cols, display_names, m.font_size, m)
-
     return fig
 
 
@@ -999,7 +815,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
 def tsplot(df, *,
            xaxis=None, yaxis=None, yaxis2=None,
            font=None, dimension=None, title=None, annotations=None,
-           source=None, labels=False, backend=None, **kwargs):
+           source=None, backend=None, **kwargs):
     """Plot one or more time series columns from a DataFrame.
 
     Column selection is done via yaxis["cols"] and yaxis2["cols"]. If neither
@@ -1024,9 +840,6 @@ def tsplot(df, *,
         annotations: dict with optional keys: hline, vline. Each is list or dict.
         source: list of source strings, e.g. ['LSEG', 'Bloomberg'].
             Rendered as "Source: LSEG, Bloomberg" at the bottom.
-        labels: bool. If True, replace the legend with FT-style end-of-line
-            labels (series name placed to the right of each line's last data
-            point, colored to match). Ignored in dual-axis mode with a warning.
         backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
         **kwargs: forwarded to the underlying plot call (e.g., linewidth, alpha).
 
@@ -1053,24 +866,14 @@ def tsplot(df, *,
                             annotations, source)
     left_cols, right_cols, display_names = _resolve_cols(df, yaxis, yaxis2)
 
-    # Warn if labels requested with dual-axis (not supported)
-    is_dual = len(right_cols) > 0
-    if labels and is_dual:
-        warnings.warn(
-            "labels=True is not supported in dual-axis mode. "
-            "Falling back to the standard legend.",
-            stacklevel=2,
-        )
-        labels = False
-
     if backend is None:
         backend = get_backend()
 
     if backend == "matplotlib":
         return _plot_ts_mpl(df, left_cols, right_cols, display_names,
                             xaxis, yaxis, yaxis2, font, dimension, title,
-                            annotations, source, labels=labels, **kwargs)
+                            annotations, source, **kwargs)
     else:
         return _plot_ts_plotly(df, left_cols, right_cols, display_names,
                                xaxis, yaxis, yaxis2, font, dimension, title,
-                               annotations, source, labels=labels, **kwargs)
+                               annotations, source, **kwargs)

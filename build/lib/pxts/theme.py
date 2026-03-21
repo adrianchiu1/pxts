@@ -171,8 +171,23 @@ def _apply_matplotlib_theme() -> None:
         from cycler import cycler
 
         plt.rcParams.update({
-            # Color cycle — FT palette, aligned with Plotly colorway
+            # Background and grid
+            "axes.facecolor":   BACKGROUND_COLOR,
+            "figure.facecolor": BACKGROUND_COLOR,
+            "axes.edgecolor":   "#CCCCCC",
+            "axes.grid":        True,
+            "grid.color":       GRID_COLOR,
+            "grid.alpha":       GRID_ALPHA,
+            "grid.linestyle":   "-",
+            "grid.linewidth":   0.6,
+            # Font
+            "font.size":        DEFAULT_FONT_SIZE,
+            "axes.labelsize":   DEFAULT_FONT_SIZE,
+            "axes.titlesize":   DEFAULT_FONT_SIZE + 1,
+            "legend.fontsize":  DEFAULT_FONT_SIZE - 1,
+            # Color cycle
             "axes.prop_cycle":  cycler(color=pxts_COLORS),
+            # Figure size: NOT set — let matplotlib be window-responsive (per user decision)
         })
 
         # Apply date.converter rcParam inside its own try/except KeyError.

@@ -11,7 +11,11 @@
       "Bash(python:*)",
       "Bash(git commit:*)",
       "Bash(/c/Users/adria/miniconda3/python -m pytest tests/ -q --tb=no 2>&1 | tail -5)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "WebFetch(domain:willkoehrsen.github.io)",
+      "Bash(/c/Users/adria/miniconda3/python \"C:/Users/adria/AppData/Local/Temp/extract_energy.py\" 2>&1 || true)",
+      "Bash(/c/Users/adria/miniconda3/python \"C:/Users/adria/AppData/Local/Temp/extract_energy.py\" 2>&1)",
+      "Bash(/c/Users/adria/miniconda3/python \"C:/Users/adria/AppData/Local/Temp/extract_all_cells.py\" 2>&1 | head -200)"
     ]
   }
 }
