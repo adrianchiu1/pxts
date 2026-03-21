@@ -1,11 +1,12 @@
 """pxts plots module: time series line charts for matplotlib and plotly backends.
 
 Public API:
-    tsplot(df, cols=None, *, xaxis=None, yaxis=None, yaxis2=None, font=None,
+    tsplot(df, *, xaxis=None, yaxis=None, yaxis2=None, font=None,
            dim=None, titles=None, annot=None, backend=None, **kwargs)
 
-If yaxis2 is provided (with a required "cols" key), the chart becomes dual-axis.
-Otherwise it is a standard single-axis chart.
+Column selection is done via yaxis["cols"] and yaxis2["cols"].
+If yaxis2 is provided, the chart becomes dual-axis.
+If neither yaxis nor yaxis2 specifies cols, all df columns are plotted.
 """
 
 import pandas as pd
@@ -41,8 +42,31 @@ _RANGE_SELECTOR_BUTTONS = [
 # Column resolution
 # ---------------------------------------------------------------------------
 
-def _resolve_cols(df, cols, yaxis2):
-    """Resolve cols and yaxis2["cols"] into left_cols, right_cols, display_names.
+def _parse_axis_cols(axis_dict, axis_name):
+    """Extract cols and display_names from an axis dict's 'cols' key.
+
+    Returns:
+        (col_list, display_names) where col_list is a list of df column names
+        and display_names maps df col name -> display name.
+    """
+    if axis_dict is None or "cols" not in axis_dict:
+        return None, {}
+
+    raw = axis_dict["cols"]
+    if isinstance(raw, dict):
+        col_list = list(raw.values())
+        display_names = {v: k for k, v in raw.items()}
+        return col_list, display_names
+    elif isinstance(raw, list):
+        return raw, {}
+    else:
+        raise ValueError(
+            f"{axis_name}['cols'] must be list or dict, got {type(raw).__name__}"
+        )
+
+
+def _resolve_cols(df, yaxis, yaxis2):
+    """Resolve yaxis["cols"] and yaxis2["cols"] into left_cols, right_cols, display_names.
 
     Returns:
         (left_cols, right_cols, display_names)
@@ -52,52 +76,36 @@ def _resolve_cols(df, cols, yaxis2):
     """
     display_names = {}
 
-    # Normalize cols
-    if cols is None and yaxis2 is None:
-        left_cols = list(df.columns)
-    elif cols is None:
-        # Will be computed after resolving right_cols
-        left_cols = None
-    elif isinstance(cols, dict):
-        left_cols = list(cols.values())
-        display_names.update({v: k for k, v in cols.items()})
-    elif isinstance(cols, list):
-        left_cols = cols
-    else:
-        raise ValueError(
-            f"cols must be list, dict, or None, got {type(cols).__name__}"
-        )
-
     # Resolve right_cols from yaxis2
-    if yaxis2 is None:
-        right_cols = []
-    else:
+    if yaxis2 is not None:
         if not isinstance(yaxis2, dict):
             raise ValueError(
                 f"yaxis2 must be a dict, got {type(yaxis2).__name__}"
             )
         if "cols" not in yaxis2:
             raise ValueError("yaxis2 must contain a 'cols' key")
-        y2_cols = yaxis2["cols"]
-        if isinstance(y2_cols, dict):
-            right_cols = list(y2_cols.values())
-            display_names.update({v: k for k, v in y2_cols.items()})
-        elif isinstance(y2_cols, list):
-            right_cols = y2_cols
-        else:
-            raise ValueError(
-                f"yaxis2['cols'] must be list or dict, got {type(y2_cols).__name__}"
-            )
+        right_cols, right_names = _parse_axis_cols(yaxis2, "yaxis2")
+        display_names.update(right_names)
+    else:
+        right_cols = []
 
-    # Auto-exclude right_cols from left when cols=None + yaxis2 present
+    # Resolve left_cols from yaxis
+    left_cols, left_names = _parse_axis_cols(yaxis, "yaxis")
+    display_names.update(left_names)
+
     if left_cols is None:
-        left_cols = [c for c in df.columns if c not in right_cols]
+        if yaxis2 is not None:
+            # Auto-exclude right_cols from left
+            left_cols = [c for c in df.columns if c not in right_cols]
+        else:
+            # No cols specified anywhere — plot all
+            left_cols = list(df.columns)
 
     # Check for overlap
     overlap = set(left_cols) & set(right_cols)
     if overlap:
         raise ValueError(
-            f"Columns {sorted(overlap)!r} appear in both cols and yaxis2['cols']. "
+            f"Columns {sorted(overlap)!r} appear in both yaxis['cols'] and yaxis2['cols']. "
             f"Each column must be on exactly one axis."
         )
 
@@ -559,23 +567,25 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
 # Public API
 # ---------------------------------------------------------------------------
 
-def tsplot(df, cols=None, *,
+def tsplot(df, *,
            xaxis=None, yaxis=None, yaxis2=None,
            font=None, dim=None, titles=None, annot=None,
            backend=None, **kwargs):
     """Plot one or more time series columns from a DataFrame.
 
-    If yaxis2 is provided (dict with required "cols" key), the chart becomes
-    dual-axis. Otherwise it is a standard single-axis chart.
+    Column selection is done via yaxis["cols"] and yaxis2["cols"]. If neither
+    specifies cols, all df columns are plotted on a single axis. If yaxis2 is
+    provided (dict with required "cols" key), the chart becomes dual-axis.
 
     Args:
         df: pandas DataFrame with a DatetimeIndex.
-        cols: list of column names, or dict {display_name: col_name}, or None
-            (default: all columns). When yaxis2 is present and cols is None,
-            left axis gets all columns except those in yaxis2["cols"].
-        xaxis: dict with optional keys: range, name, format, font.
-        yaxis: dict with optional keys: range, name, format, font.
-        yaxis2: dict with required "cols" key and optional: range, name, format, font.
+        xaxis: dict with optional keys: range, name.
+        yaxis: dict with optional keys: cols, range, name.
+            cols: list of column names or dict {display_name: col_name}.
+            If omitted and yaxis2 is present, left axis gets all columns
+            except those in yaxis2["cols"]. If omitted and no yaxis2, all
+            columns are plotted.
+        yaxis2: dict with required "cols" key and optional: range, name.
             Triggers dual-axis mode.
         font: dict with optional keys: size, family.
         dim: dict with optional keys: height, width (pixels).
@@ -589,12 +599,12 @@ def tsplot(df, cols=None, *,
 
     Raises:
         pxtsValidationError: if df does not have a DatetimeIndex.
-        ValueError: if columns are invalid, overlap between axes, yaxis2 missing
-            "cols" key, or dict parameters have invalid shapes.
+        ValueError: if columns are not in df, overlap between axes, yaxis2
+            missing "cols" key, or dict parameters have invalid shapes.
     """
     validate_ts(df)
     _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dim, titles, annot)
-    left_cols, right_cols, display_names = _resolve_cols(df, cols, yaxis2)
+    left_cols, right_cols, display_names = _resolve_cols(df, yaxis, yaxis2)
 
     if backend is None:
         backend = get_backend()

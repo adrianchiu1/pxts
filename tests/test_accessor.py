@@ -54,7 +54,7 @@ class TestDelegation:
     def test_plot_dual_via_yaxis2(self, ts_df):
         """plot(yaxis2=...) triggers dual-axis mode."""
         import matplotlib.figure
-        fig = ts_df.ts.plot(cols=["A"], yaxis2={"cols": ["B"]}, backend="matplotlib")
+        fig = ts_df.ts.plot(yaxis={"cols": ["A"]}, yaxis2={"cols": ["B"]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         assert len(fig.axes) == 2
         plt.close("all")

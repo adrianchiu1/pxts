@@ -24,7 +24,7 @@ specified, the plot becomes dual-axis; otherwise it's a standard single-axis plo
 ## New Signature
 
 ```python
-def tsplot(df, cols=None, *,
+def tsplot(df, *,
            xaxis=None, yaxis=None, yaxis2=None,
            font=None, dim=None, titles=None, annot=None,
            backend=None, **kwargs):
@@ -34,30 +34,32 @@ def tsplot(df, cols=None, *,
 
 | Dict | Keys | Notes |
 |------|------|-------|
-| `cols` | `list` or `{display_name: col_name}` | `None` = all columns |
-| `xaxis` | `range`, `name`, `format`, `font` | `range=[date1, date2]` |
-| `yaxis` | `range`, `name`, `format`, `font` | Primary (left) y-axis |
-| `yaxis2` | `cols`, `range`, `name`, `format`, `font` | **Trigger for dual-axis.** `cols` required. |
+| `xaxis` | `range`, `name` | `range=[date1, date2]` |
+| `yaxis` | `cols`, `range`, `name` | Primary (left) y-axis. `cols` is list or `{display: actual}` |
+| `yaxis2` | `cols`, `range`, `name` | **Trigger for dual-axis.** `cols` required. |
 | `font` | `size`, `family` | Global font override |
 | `dim` | `height`, `width` | Pixels; mpl converts via dpi (default 100) |
 | `titles` | `title`, `subtitle` | mpl: suptitle+set_title. plotly: `<br><sub>` |
 | `annot` | `hline`, `vline` | Each is `{label: value}` or `[value, ...]` |
 
-## Dual-axis column assignment
+## Column selection examples
 
 ```python
-# Single axis — all 3 cols on one y-axis
-tsplot(df, cols=["A", "B", "C"])
+# All columns on single axis (default)
+tsplot(df)
+
+# Specific columns on single axis
+tsplot(df, yaxis={"cols": ["A", "B", "C"]})
 
 # Dual axis — A,B on left, C on right (auto-excluded from left)
-tsplot(df, cols=["A", "B"], yaxis2={"cols": ["C"], "name": "Pressure"})
+tsplot(df, yaxis={"cols": ["A", "B"]}, yaxis2={"cols": ["C"], "name": "Pressure"})
 
-# cols=None + yaxis2 → left gets all columns EXCEPT yaxis2["cols"]
+# No yaxis cols + yaxis2 → left gets all columns EXCEPT yaxis2["cols"]
 tsplot(df, yaxis2={"cols": ["C"]})  # left = A, B (assuming df has A, B, C)
 
 # Dict cols with display names
 tsplot(df,
-       cols={"Energy": "px_energy", "Gas": "px_gas"},
+       yaxis={"cols": {"Energy": "px_energy", "Gas": "px_gas"}},
        yaxis2={"cols": {"Steam": "px_steam"}, "range": [0, 100]})
 ```
 

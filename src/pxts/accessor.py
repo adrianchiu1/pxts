@@ -53,7 +53,6 @@ class TsAccessor:
 
     def plot(
         self,
-        cols=None,
         *,
         xaxis=None,
         yaxis=None,
@@ -68,7 +67,6 @@ class TsAccessor:
         """Plot time series columns as line charts. See pxts.plots.tsplot for details."""
         return _plot(
             self._obj,
-            cols=cols,
             xaxis=xaxis,
             yaxis=yaxis,
             yaxis2=yaxis2,

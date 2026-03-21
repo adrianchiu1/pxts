@@ -21,20 +21,19 @@ from pxts.exceptions import pxtsValidationError
 # ---------------------------------------------------------------------------
 
 class TestTsplotSingleMpl:
-    def test_default_cols_returns_figure(self, ts_df):
+    def test_default_all_cols(self, ts_df):
         fig = tsplot(ts_df, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_explicit_cols(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"], backend="matplotlib")
+    def test_explicit_cols_via_yaxis(self, ts_df):
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
     def test_dict_cols_display_names(self, ts_df):
-        fig = tsplot(ts_df, cols={"Alpha": "A"}, backend="matplotlib")
+        fig = tsplot(ts_df, yaxis={"cols": {"Alpha": "A"}}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
-        # Legend should use display name
         ax = fig.axes[0]
         legend_texts = [t.get_text() for t in ax.get_legend().get_texts()]
         assert "Alpha" in legend_texts
@@ -42,7 +41,7 @@ class TestTsplotSingleMpl:
 
     def test_unknown_col_raises(self, ts_df):
         with pytest.raises(ValueError, match="UNKNOWN"):
-            tsplot(ts_df, cols=["UNKNOWN"], backend="matplotlib")
+            tsplot(ts_df, yaxis={"cols": ["UNKNOWN"]}, backend="matplotlib")
 
 
 # ---------------------------------------------------------------------------
@@ -50,18 +49,18 @@ class TestTsplotSingleMpl:
 # ---------------------------------------------------------------------------
 
 class TestTsplotSinglePlotly:
-    def test_default_cols_returns_figure(self, ts_df):
+    def test_default_all_cols(self, ts_df):
         fig = tsplot(ts_df, backend="plotly")
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == len(ts_df.columns)
 
-    def test_explicit_cols(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"], backend="plotly")
+    def test_explicit_cols_via_yaxis(self, ts_df):
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, backend="plotly")
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 1
 
     def test_dict_cols_display_names(self, ts_df):
-        fig = tsplot(ts_df, cols={"Alpha": "A"}, backend="plotly")
+        fig = tsplot(ts_df, yaxis={"cols": {"Alpha": "A"}}, backend="plotly")
         assert fig.data[0].name == "Alpha"
 
     def test_showlegend_true_in_template(self, ts_df):
@@ -75,18 +74,18 @@ class TestTsplotSinglePlotly:
 
 class TestTsplotDualMpl:
     def test_dual_returns_figure(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="matplotlib")
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, yaxis2={"cols": ["B"]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_cols_none_auto_excludes(self, ts_df):
-        """cols=None + yaxis2 → left gets A, right gets B."""
+    def test_auto_excludes_right_from_left(self, ts_df):
+        """No yaxis cols + yaxis2 → left gets A, right gets B."""
         fig = tsplot(ts_df, yaxis2={"cols": ["B"]}, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
     def test_dual_has_two_axes(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="matplotlib")
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, yaxis2={"cols": ["B"]}, backend="matplotlib")
         assert len(fig.axes) == 2
         plt.close(fig)
 
@@ -97,31 +96,29 @@ class TestTsplotDualMpl:
 
 class TestTsplotDualPlotly:
     def test_dual_returns_figure(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="plotly")
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, yaxis2={"cols": ["B"]}, backend="plotly")
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
 
-    def test_cols_none_auto_excludes(self, ts_df):
+    def test_auto_excludes_right_from_left(self, ts_df):
         fig = tsplot(ts_df, yaxis2={"cols": ["B"]}, backend="plotly")
         assert isinstance(fig, go.Figure)
-        # Should have 2 traces: A on left, B on right
         assert len(fig.data) == 2
 
     def test_yaxis2_name_sets_title(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"],
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]},
                      yaxis2={"cols": ["B"], "name": "Pressure"},
                      backend="plotly")
         assert fig.layout.yaxis2.title.text == "Pressure"
 
     def test_yaxis_name_sets_left_title(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"],
-                     yaxis={"name": "Energy"},
+        fig = tsplot(ts_df, yaxis={"cols": ["A"], "name": "Energy"},
                      yaxis2={"cols": ["B"]},
                      backend="plotly")
         assert fig.layout.yaxis.title.text == "Energy"
 
     def test_showlegend_true_in_template(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="plotly")
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, yaxis2={"cols": ["B"]}, backend="plotly")
         assert fig.layout.template.layout.showlegend is True
 
 
@@ -132,7 +129,7 @@ class TestTsplotDualPlotly:
 class TestColsResolution:
     def test_overlap_raises(self, ts_df):
         with pytest.raises(ValueError, match="appear in both"):
-            tsplot(ts_df, cols=["A", "B"], yaxis2={"cols": ["A"]}, backend="matplotlib")
+            tsplot(ts_df, yaxis={"cols": ["A", "B"]}, yaxis2={"cols": ["A"]}, backend="matplotlib")
 
     def test_yaxis2_without_cols_key_raises(self, ts_df):
         with pytest.raises(ValueError, match="cols"):
@@ -142,13 +139,13 @@ class TestColsResolution:
         with pytest.raises(ValueError, match="yaxis2 must be dict"):
             tsplot(ts_df, yaxis2=["B"], backend="matplotlib")
 
-    def test_cols_wrong_type_raises(self, ts_df):
-        with pytest.raises(ValueError, match="cols must be"):
-            tsplot(ts_df, cols="A", backend="matplotlib")
+    def test_yaxis_cols_wrong_type_raises(self, ts_df):
+        with pytest.raises(ValueError, match="cols.*must be list or dict"):
+            tsplot(ts_df, yaxis={"cols": "A"}, backend="matplotlib")
 
     def test_dict_cols_with_dict_yaxis2_cols(self, ts_df):
         fig = tsplot(ts_df,
-                     cols={"Alpha": "A"},
+                     yaxis={"cols": {"Alpha": "A"}},
                      yaxis2={"cols": {"Beta": "B"}},
                      backend="plotly")
         names = [t.name for t in fig.data]
@@ -167,7 +164,7 @@ class TestValidation:
 
     def test_unknown_col_raises(self, ts_df):
         with pytest.raises(ValueError, match="NOPE"):
-            tsplot(ts_df, cols=["NOPE"], backend="matplotlib")
+            tsplot(ts_df, yaxis={"cols": ["NOPE"]}, backend="matplotlib")
 
     def test_xaxis_range_not_date_raises(self, ts_df):
         with pytest.raises(ValueError, match="xaxis"):
@@ -293,7 +290,7 @@ class TestRangeSelector:
             assert lbl in labels
 
     def test_dual_has_range_buttons(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"], yaxis2={"cols": ["B"]}, backend="plotly")
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, yaxis2={"cols": ["B"]}, backend="plotly")
         rs = fig.layout.xaxis.rangeselector
         assert rs is not None
         assert len(rs.buttons) == 6
@@ -330,13 +327,13 @@ class TestAxisRanges:
         assert isinstance(fig, go.Figure)
 
     def test_yaxis2_range_plotly(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"],
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]},
                      yaxis2={"cols": ["B"], "range": [0, 10]},
                      backend="plotly")
         assert list(fig.layout.yaxis2.range) == [0, 10]
 
     def test_yaxis2_range_mpl(self, ts_df):
-        fig = tsplot(ts_df, cols=["A"],
+        fig = tsplot(ts_df, yaxis={"cols": ["A"]},
                      yaxis2={"cols": ["B"], "range": [0, 10]},
                      backend="matplotlib")
         ax2 = fig.axes[1]  # secondary axis
