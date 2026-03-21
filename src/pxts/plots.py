@@ -597,9 +597,9 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     # --- Layout margins (pixel-precise, top to bottom) ---
     # 3px top pad | accent line | 5px gap | title | subtitle | 5px gap | legend | range sel
     top_margin = 3                          # top edge to accent line
-    top_margin += 5                         # accent line to title
+    top_margin += 30                         # accent line to title
     if title_main:
-        top_margin += 24                    # title text height
+        top_margin += 20                    # title text height
     if title_sub:
         top_margin += 20                    # subtitle text height
     top_margin += 5                         # subtitle/title to legend
@@ -625,7 +625,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             buttons=_RANGE_SELECTOR_BUTTONS,
             bgcolor="rgba(255,255,255,0.8)",
             activecolor=LEFT_COLOR,
-            x=0, y=1.0, xanchor="left", yanchor="bottom",
+            x=0, y=0.98, xanchor="left", yanchor="bottom",
             font=dict(size=font_size - 1),
         ),
         rangeslider=dict(visible=False),
@@ -640,7 +640,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         font=dict(family=font_family, size=font_size - 1, color=FT_FONT_COLOR),
         legend=dict(
             orientation="h",
-            x=0, y=1.08,
+            x=0, y=1.02,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=font_size - 1, color=FT_FONT_COLOR),
@@ -667,7 +667,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         # Align title with y-axis labels (left margin area)
         title_x = left_margin * 0.1 / total_w
         # Position title 8px from top of figure (3px pad + accent + 5px gap)
-        title_y = 1 - 8 / total_h
+        title_y = 1 - 40 / total_h
         layout_kwargs["title"] = dict(
             text="<br>".join(parts),
             x=title_x, xanchor="left",
@@ -686,7 +686,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         ))
 
     # --- Accent line (short bar, top-left, aligned with title/y-axis labels) ---
-    accent_y = 1 + (top_margin - 3) / chart_h_px
+    accent_y = 1 + (top_margin - 12) / chart_h_px
     # paper x=0 is plot area left edge; shift left into margin to align with y-labels
     accent_x0 = -(left_margin * 0.85) / chart_w_px
     accent_x1 = accent_x0 + ACCENT_LINE_LENGTH / chart_w_px
@@ -704,7 +704,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             x=accent_x0, y=0,
             xref="paper", yref="paper",
             xanchor="left", yanchor="top",
-            yshift=-(bottom_margin - 15),
+            yshift=-(bottom_margin - 40),
             showarrow=False,
             font=dict(size=font_size - 1, color=FT_FONT_COLOR),
         )

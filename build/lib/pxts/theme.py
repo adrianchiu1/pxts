@@ -13,20 +13,32 @@ Blue leads per finance convention (Bloomberg/TradingView primary series color).
 # Color palette constants
 # ---------------------------------------------------------------------------
 
-# Primary "pxts branded" colors: Finance-themed Okabe-Ito adaptation.
-# Blue (#0072B2) leads per finance convention (Bloomberg/TradingView primary series).
-# All 8 colors are distinguishable for deuteranopia and protanopia (red-green weakness).
+# FT data visualization palette (default).
+# Source: FT Visual Vocabulary / o-colors.
+FT_COLORS: list = [
+    "#0F5499",  # Oxford (dark blue) — primary series
+    "#EB5E8D",  # Candy (pink)
+    "#00A0AF",  # Teal
+    "#FF764D",  # Mandarin (orange)
+    "#990F3D",  # Claret (dark red)
+    "#96CC28",  # Wasabi (green)
+]
+
+# Okabe-Ito colorblind-safe palette (alternative).
 # Source: Wong (2011) Nature Methods 8(6):441, doi:10.1038/nmeth.1618
-pxts_COLORS: list = [
-    "#0072B2",  # Blue — primary series, matches finance convention
-    "#E69F00",  # Orange
+# All 7 colors are distinguishable for deuteranopia and protanopia.
+OKABE_ITO_COLORS: list = [
+    "#0072B2",  # Blue
+    "#D55E00",  # Vermillion
     "#56B4E9",  # Sky Blue
     "#009E73",  # Bluish Green
-    "#D55E00",  # Vermillion (distinguishable from green for red-green weakness)
+    "#E69F00",  # Orange
     "#CC79A7",  # Reddish Purple
-    "#F0E442",  # Yellow (use last — low contrast on white background)
     "#000000",  # Black
 ]
+
+# Default palette — FT style.
+pxts_COLORS: list = list(FT_COLORS)
 
 # Fallback: plotly's built-in qualitative.Safe palette (24 colors, colorblind-friendly).
 # Used when series count exceeds len(pxts_COLORS).
@@ -37,20 +49,72 @@ BACKGROUND_COLOR: str = "#FFFFFF"  # White background
 GRID_COLOR: str = "#E5E5E5"        # Subtle gray gridlines
 GRID_ALPHA: float = 0.6
 
+# FT-style constants
+FT_FONT_COLOR: str = "#33302E"     # Warm dark charcoal (Financial Times style)
+ACCENT_LINE_WIDTH: float = 3.0     # Top accent line thickness
+
 # Dark theme colors (used when theme='dark' is passed to tsplot/tsplot_dual)
-DARK_BACKGROUND_COLOR: str = "#1a1a2e"   # Deep navy background
+DARK_BACKGROUND_COLOR: str = "#1a1a2e"    # Deep navy background
 DARK_PLOT_COLOR: str = "#16213e"          # Slightly lighter navy for plot area
 DARK_GRID_COLOR: str = "#2d2d5a"          # Muted purple-navy grid
 DARK_FONT_COLOR: str = "#e0e0e0"          # Light gray text for readability
 
-# Font
-DEFAULT_FONT_SIZE: int = 12
-FONT_FAMILY: str = "Arial, sans-serif"
+# Font — Outfit from Google Fonts; degrades to Helvetica/Arial.
+DEFAULT_FONT_SIZE: int = 14
+FONT_FAMILY: str = "Outfit, Helvetica Neue, Helvetica, Arial, sans-serif"
+OUTFIT_FONT_URL: str = "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
+
+# Chart dimension defaults (FT-style: 600px wide, 1.5 aspect ratio)
+DEFAULT_CHART_WIDTH: int = 600
+DEFAULT_ASPECT_RATIO: float = 1.5
+
+# Accent line: short bar at top-left (pixels)
+ACCENT_LINE_LENGTH: int = 60
 
 
 # ---------------------------------------------------------------------------
 # Backend-specific theme application
 # ---------------------------------------------------------------------------
+
+def _load_outfit_font() -> None:
+    """Load the Outfit Google Font for use in notebooks and matplotlib.
+
+    In Jupyter: injects a <style> tag with @import for the font.
+    For matplotlib: downloads the .ttf and registers it with font_manager.
+    Silently skips on any failure (network, permissions, etc.).
+    """
+    # Jupyter / IPython — inject CSS @import
+    try:
+        from IPython.display import display, HTML
+        display(HTML(
+            f'<style>@import url("{OUTFIT_FONT_URL}");</style>'
+        ))
+    except Exception:
+        pass
+
+    # matplotlib — download and register the font
+    try:
+        import matplotlib.font_manager as fm
+        from pathlib import Path
+        import urllib.request
+        import tempfile
+
+        # Check if Outfit is already registered
+        available = {f.name for f in fm.fontManager.ttflist}
+        if "Outfit" in available:
+            return
+
+        # Download a single weight (400 regular) .ttf from Google Fonts
+        ttf_url = "https://fonts.gstatic.com/s/outfit/v11/QGYyz_MVcBeNP4NjuGObqx1XmO1I4e.ttf"
+        font_dir = Path(tempfile.gettempdir()) / "pxts_fonts"
+        font_dir.mkdir(exist_ok=True)
+        font_path = font_dir / "Outfit-Regular.ttf"
+        if not font_path.exists():
+            urllib.request.urlretrieve(ttf_url, font_path)
+        fm.fontManager.addfont(str(font_path))
+    except Exception:
+        pass
+
 
 def _apply_plotly_theme() -> None:
     """Register and set the pxts plotly template as the session default."""
@@ -70,10 +134,10 @@ def _apply_plotly_theme() -> None:
                 paper_bgcolor=BACKGROUND_COLOR,
                 plot_bgcolor=BACKGROUND_COLOR,
                 colorway=combined_colorway,
-                font=dict(family=FONT_FAMILY, size=DEFAULT_FONT_SIZE),
+                font=dict(family=FONT_FAMILY, size=DEFAULT_FONT_SIZE,
+                          color=FT_FONT_COLOR),
                 xaxis=dict(
-                    showgrid=True,
-                    gridcolor=GRID_COLOR,
+                    showgrid=False,
                     zeroline=False,
                 ),
                 yaxis=dict(
@@ -82,9 +146,10 @@ def _apply_plotly_theme() -> None:
                     zeroline=False,
                 ),
                 legend=dict(
-                    bgcolor="rgba(255,255,255,0.8)",
-                    xanchor="right",
-                    x=1,
+                    orientation="h",
+                    bgcolor="rgba(0,0,0,0)",
+                    xanchor="left",
+                    x=0,
                 ),
                 showlegend=True,
                 margin=dict(l=60, r=40, t=50, b=50),
@@ -152,5 +217,6 @@ def apply_theme() -> None:
 
     Note: figure.figsize is NOT set — matplotlib is window-responsive per user decision.
     """
+    _load_outfit_font()
     _apply_plotly_theme()
     _apply_matplotlib_theme()

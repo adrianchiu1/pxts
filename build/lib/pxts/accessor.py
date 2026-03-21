@@ -8,7 +8,7 @@ import pandas as pd
 
 from pxts.core import infer_freq, set_tz, to_dense, validate_ts  # noqa: F401
 from pxts.io import write_ts as _write_ts, read_bdh as _read_bdh
-from pxts.plots import tsplot as _plot, tsplot_dual as _plot_dual
+from pxts.plots import tsplot as _plot
 
 
 @pd.api.extensions.register_dataframe_accessor("ts")
@@ -53,54 +53,29 @@ class TsAccessor:
 
     def plot(
         self,
-        cols=None,
-        title: str = "",
-        subtitle: str = "",
-        labels: bool = False,
-        hlines=None,
-        vlines=None,
-        date_format=None,
+        *,
+        xaxis=None,
+        yaxis=None,
+        yaxis2=None,
+        font=None,
+        dimension=None,
+        title=None,
+        annotations=None,
+        source=None,
         backend=None,
         **kwargs: Any,
     ):
-        """Plot time series columns as line charts. See pxts.plots.plot for details."""
+        """Plot time series columns as line charts. See pxts.plots.tsplot for details."""
         return _plot(
             self._obj,
-            cols=cols,
+            xaxis=xaxis,
+            yaxis=yaxis,
+            yaxis2=yaxis2,
+            font=font,
+            dimension=dimension,
             title=title,
-            subtitle=subtitle,
-            labels=labels,
-            hlines=hlines,
-            vlines=vlines,
-            date_format=date_format,
-            backend=backend,
-            **kwargs,
-        )
-
-    def plot_dual(
-        self,
-        left,
-        right,
-        title: str = "",
-        subtitle: str = "",
-        labels: bool = False,
-        hlines=None,
-        vlines=None,
-        date_format=None,
-        backend=None,
-        **kwargs: Any,
-    ):
-        """Plot time series with two y-axes. See pxts.plots.plot_dual for details."""
-        return _plot_dual(
-            self._obj,
-            left=left,
-            right=right,
-            title=title,
-            subtitle=subtitle,
-            labels=labels,
-            hlines=hlines,
-            vlines=vlines,
-            date_format=date_format,
+            annotations=annotations,
+            source=source,
             backend=backend,
             **kwargs,
         )
