@@ -43,6 +43,32 @@ LEFT_COLOR: str = pxts_COLORS[0]   # '#0072B2' Blue
 RIGHT_COLOR: str = pxts_COLORS[1]  # '#D55E00' Vermillion
 
 
+def _infer_hover_date_format(idx: pd.DatetimeIndex) -> str:
+    """Return a d3-time-format string appropriate for the data's periodicity.
+
+    Uses the minimum observed timedelta to decide how much precision to show.
+    Falls back to '%Y-%m-%d' if the index has fewer than 2 points.
+    """
+    if len(idx) < 2:
+        return "%Y-%m-%d"
+    diffs = idx.to_series().diff().dropna()
+    min_diff = diffs.min()
+    seconds = min_diff.total_seconds()
+    if seconds < 60:                       # sub-minute
+        return "%Y-%m-%d %H:%M:%S"
+    if seconds < 3600:                     # sub-hour (minute-level)
+        return "%Y-%m-%d %H:%M"
+    if seconds < 86400:                    # sub-day (hourly)
+        return "%Y-%m-%d %H:%M"
+    if seconds < 28 * 86400:              # daily / weekly
+        return "%Y-%m-%d"
+    if seconds < 90 * 86400:             # monthly
+        return "%b %Y"
+    if seconds < 366 * 86400:            # quarterly
+        return "%b %Y"
+    return "%Y"                           # annual or coarser
+
+
 # ---------------------------------------------------------------------------
 # Column resolution
 # ---------------------------------------------------------------------------
@@ -691,8 +717,12 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     else:
         fig = go.Figure()
 
-    # Unified hover: each entry shows "series_name: value"
-    unified_hovertemplate = "%{fullData.name}: %{y:.4g}<extra></extra>"
+    # Unified hover: date header uses the most precise format for the data,
+    # each entry shows "series_name: value".
+    date_fmt = _infer_hover_date_format(df.index)
+    unified_hovertemplate = (
+        "%{fullData.name}: %{y:.4g}<extra></extra>"
+    )
 
     sorted_left = _sorted_cols_by_last_value(df, left_cols)
     for col in sorted_left:
@@ -733,6 +763,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         hovermode="x unified",
         xaxis=dict(
             type="date", showgrid=False,
+            hoverformat=date_fmt,
             showspikes=True, spikemode="across", spikesnap="cursor",
             spikedash="dot", spikethickness=1, spikecolor="#999999",
         ),
