@@ -13,6 +13,7 @@ Layout (top to bottom): accent line, title, subtitle, legend,
 chart area, source. FT-inspired styling: no spines, horizontal gridlines only.
 """
 
+import inspect
 from dataclasses import dataclass
 from typing import Optional
 
@@ -321,6 +322,22 @@ class LayoutMetrics:
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+def _infer_df_name(df) -> Optional[str]:
+    """Try to find the variable name of df in the caller's caller's frame."""
+    try:
+        frame = inspect.currentframe()
+        # Walk up: _infer_df_name -> tsplot -> user code
+        caller = frame.f_back.f_back
+        for name, val in caller.f_locals.items():
+            if val is df:
+                return name
+    except Exception:
+        pass
+    finally:
+        del frame
+    return None
+
 
 def _sorted_cols_by_last_value(df, cols) -> list:
     """Return cols sorted by their last value in df (descending)."""
@@ -824,6 +841,16 @@ def tsplot(df, *,
         ValueError: if columns are not in df, overlap between axes, yaxis2
             missing "cols" key, or dict parameters have invalid shapes.
     """
+    # Default title: infer DataFrame variable name from caller's frame
+    if title is None:
+        df_name = _infer_df_name(df)
+        if df_name:
+            title = {"main": df_name}
+
+    # Default source
+    if source is None:
+        source = ["Own calculations"]
+
     validate_ts(df)
     _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dimension, title,
                             annotations, source)
