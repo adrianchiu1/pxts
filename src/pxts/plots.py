@@ -691,13 +691,15 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     else:
         fig = go.Figure()
 
+    # Unified hover: each entry shows "series_name: value"
+    unified_hovertemplate = "%{fullData.name}: %{y:.4g}<extra></extra>"
+
     sorted_left = _sorted_cols_by_last_value(df, left_cols)
     for col in sorted_left:
         name = _get_display_name(col, display_names)
-        hovertemplate = f"<b>{name}</b><br>Date: %{{x}}<br>Value: %{{y:.4g}}<extra></extra>"
         trace_kwargs = dict(
             x=df.index, y=df[col], mode="lines",
-            name=name, hovertemplate=hovertemplate,
+            name=name, hovertemplate=unified_hovertemplate,
         )
         if is_dual:
             trace_kwargs["line"] = dict(color=LEFT_COLOR)
@@ -709,11 +711,10 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         sorted_right = _sorted_cols_by_last_value(df, right_cols)
         for col in sorted_right:
             name = _get_display_name(col, display_names)
-            hovertemplate = f"<b>{name}</b><br>Date: %{{x}}<br>Value: %{{y:.4g}}<extra></extra>"
             fig.add_trace(
                 go.Scatter(
                     x=df.index, y=df[col], mode="lines",
-                    name=name, hovertemplate=hovertemplate,
+                    name=name, hovertemplate=unified_hovertemplate,
                     line=dict(color=RIGHT_COLOR),
                 ),
                 secondary_y=True,
@@ -725,8 +726,25 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     total_w = int(m.total_w_px)
     total_h = int(m.total_h_px)
 
+    # Tooltip font is 2pt smaller than axis labels (axis labels = m.font_size - 1)
+    tooltip_font_size = m.font_size - 3
+
     layout_kwargs = dict(
-        xaxis=dict(type="date", showgrid=False),
+        hovermode="x unified",
+        xaxis=dict(
+            type="date", showgrid=False,
+            showspikes=True, spikemode="across", spikesnap="cursor",
+            spikedash="dot", spikethickness=1, spikecolor="#999999",
+        ),
+        hoverlabel=dict(
+            bgcolor="white",
+            bordercolor="#cccccc",
+            font=dict(
+                size=tooltip_font_size,
+                family=m.font_family,
+                color=FT_FONT_COLOR,
+            ),
+        ),
         width=total_w,
         height=total_h,
         margin=dict(l=m.left_margin_px, r=m.right_margin_px,
