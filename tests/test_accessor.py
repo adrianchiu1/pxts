@@ -63,6 +63,19 @@ class TestDelegation:
         """plot_dual() method has been removed."""
         assert not hasattr(ts_df.ts, "plot_dual")
 
+    def test_plot_with_new_params(self, ts_df):
+        """New parameters (dimension, title, annotations, source) are accepted."""
+        import matplotlib.figure
+        fig = ts_df.ts.plot(
+            title={"main": "Test", "sub": "Subtitle"},
+            dimension={"width": 800},
+            annotations={"hline": [2.0]},
+            source=["Test Source"],
+            backend="matplotlib",
+        )
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close("all")
+
 
 class TestErrorProtocol:
     """Pandas accessor contract: AttributeError on non-DatetimeIndex DataFrame."""

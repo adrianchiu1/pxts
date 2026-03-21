@@ -37,6 +37,10 @@ BACKGROUND_COLOR: str = "#FFFFFF"  # White background
 GRID_COLOR: str = "#E5E5E5"        # Subtle gray gridlines
 GRID_ALPHA: float = 0.6
 
+# FT-style constants
+FT_FONT_COLOR: str = "#33302E"     # Warm dark charcoal (Financial Times style)
+ACCENT_LINE_WIDTH: float = 3.0     # Top accent line thickness
+
 # Dark theme colors (used when theme='dark' is passed to tsplot/tsplot_dual)
 DARK_BACKGROUND_COLOR: str = "#1a1a2e"    # Deep navy background
 DARK_PLOT_COLOR: str = "#16213e"          # Slightly lighter navy for plot area
@@ -46,6 +50,10 @@ DARK_FONT_COLOR: str = "#e0e0e0"          # Light gray text for readability
 # Font
 DEFAULT_FONT_SIZE: int = 12
 FONT_FAMILY: str = "Arial, sans-serif"
+
+# Chart dimension defaults
+DEFAULT_CHART_WIDTH: int = 1000
+DEFAULT_ASPECT_RATIO: float = 1.618
 
 
 # ---------------------------------------------------------------------------
@@ -70,10 +78,10 @@ def _apply_plotly_theme() -> None:
                 paper_bgcolor=BACKGROUND_COLOR,
                 plot_bgcolor=BACKGROUND_COLOR,
                 colorway=combined_colorway,
-                font=dict(family=FONT_FAMILY, size=DEFAULT_FONT_SIZE),
+                font=dict(family=FONT_FAMILY, size=DEFAULT_FONT_SIZE,
+                          color=FT_FONT_COLOR),
                 xaxis=dict(
-                    showgrid=True,
-                    gridcolor=GRID_COLOR,
+                    showgrid=False,
                     zeroline=False,
                 ),
                 yaxis=dict(
@@ -82,9 +90,10 @@ def _apply_plotly_theme() -> None:
                     zeroline=False,
                 ),
                 legend=dict(
-                    bgcolor="rgba(255,255,255,0.8)",
-                    xanchor="right",
-                    x=1,
+                    orientation="h",
+                    bgcolor="rgba(0,0,0,0)",
+                    xanchor="left",
+                    x=0,
                 ),
                 showlegend=True,
                 margin=dict(l=60, r=40, t=50, b=50),
