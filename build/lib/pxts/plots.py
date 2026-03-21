@@ -314,6 +314,11 @@ class LayoutMetrics:
         return self.chart_h_px + self.top_space_px + self.bottom_space_px
 
     @property
+    def font_family_mpl(self) -> list:
+        """Font family as a list for matplotlib (which can't parse CSS strings)."""
+        return [f.strip() for f in self.font_family.split(",")]
+
+    @property
     def left_align_x_plotly(self) -> float:
         """X coordinate in plotly paper space that aligns with y-axis labels."""
         return -(self.left_margin_px * 0.85) / self.chart_w_px
@@ -380,13 +385,13 @@ def _draw_title_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
         fig.text(x_left, text_y, m.title_main,
                  fontsize=m.font_size + 6, fontweight="bold",
                  color=FT_FONT_COLOR, va="top", ha="left",
-                 fontfamily=m.font_family)
+                 fontfamily=m.font_family_mpl)
         text_y -= m.title_h_px / fig_h_px
 
     if m.title_sub:
         fig.text(x_left, text_y, m.title_sub,
                  fontsize=m.font_size + 2, color=FT_FONT_COLOR,
-                 va="top", ha="left", fontfamily=m.font_family)
+                 va="top", ha="left", fontfamily=m.font_family_mpl)
 
 
 def _draw_source_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
@@ -397,7 +402,7 @@ def _draw_source_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
     source_y = m.pad_bottom_px / fig_h_px
     fig.text(x_left, source_y, m.source_text,
              fontsize=m.font_size - 1, color=FT_FONT_COLOR,
-             va="top", ha="left", fontfamily=m.font_family)
+             va="top", ha="left", fontfamily=m.font_family_mpl)
 
 
 # ---------------------------------------------------------------------------
