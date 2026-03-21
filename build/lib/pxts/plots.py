@@ -13,6 +13,9 @@ Layout (top to bottom): accent line, title, subtitle, legend,
 chart area, source. FT-inspired styling: no spines, horizontal gridlines only.
 """
 
+from dataclasses import dataclass
+from typing import Optional
+
 import pandas as pd
 
 from pxts._backend import get_backend
@@ -92,10 +95,8 @@ def _resolve_cols(df, yaxis, yaxis2):
 
     if left_cols is None:
         if yaxis2 is not None:
-            # Auto-exclude right_cols from left
             left_cols = [c for c in df.columns if c not in right_cols]
         else:
-            # No cols specified anywhere — plot all
             left_cols = list(df.columns)
 
     # Check for overlap (skip when single-axis)
@@ -163,35 +164,29 @@ def _validate_annot_lines(value, name: str) -> None:
 def _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dimension,
                              title, annotations, source) -> None:
     """Validate all dict-based parameters for tsplot."""
-    # xaxis
     if xaxis is not None:
         if not isinstance(xaxis, dict):
             raise ValueError(f"xaxis must be dict or None, got {type(xaxis).__name__}")
         _validate_axis_range(xaxis.get("range"), "xaxis['range']", is_date=True)
 
-    # yaxis
     if yaxis is not None:
         if not isinstance(yaxis, dict):
             raise ValueError(f"yaxis must be dict or None, got {type(yaxis).__name__}")
         _validate_axis_range(yaxis.get("range"), "yaxis['range']")
 
-    # yaxis2 (cols presence validated by _resolve_cols)
     if yaxis2 is not None:
         if not isinstance(yaxis2, dict):
             raise ValueError(f"yaxis2 must be dict or None, got {type(yaxis2).__name__}")
         _validate_axis_range(yaxis2.get("range"), "yaxis2['range']")
 
-    # font
     if font is not None:
         if not isinstance(font, dict):
             raise ValueError(f"font must be dict or None, got {type(font).__name__}")
 
-    # dimension
     if dimension is not None:
         if not isinstance(dimension, dict):
             raise ValueError(f"dimension must be dict or None, got {type(dimension).__name__}")
 
-    # title
     if title is not None:
         if not isinstance(title, dict):
             raise ValueError(f"title must be dict or None, got {type(title).__name__}")
@@ -202,15 +197,12 @@ def _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dimension,
         if sub is not None and not isinstance(sub, str):
             raise ValueError(f"title['sub'] must be str or None, got {type(sub).__name__}")
 
-    # annotations
     if annotations is not None:
         if not isinstance(annotations, dict):
             raise ValueError(f"annotations must be dict or None, got {type(annotations).__name__}")
-        # Normalize scalars before validation
         _validate_annot_lines(_normalize_annot_lines(annotations.get("hline")), "hline")
         _validate_annot_lines(_normalize_annot_lines(annotations.get("vline")), "vline")
 
-    # source
     if source is not None:
         if not isinstance(source, list):
             raise ValueError(f"source must be list or None, got {type(source).__name__}")
@@ -223,6 +215,107 @@ def _normalize_annot_lines(value):
     if not isinstance(value, bool) and isinstance(value, (int, float)):
         return [value]
     return value
+
+
+# ---------------------------------------------------------------------------
+# Layout metrics — shared spacing for all plot types
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LayoutMetrics:
+    """Resolved layout dimensions shared across all chart types and backends.
+
+    All pixel values assume 100 DPI for matplotlib (1 px = 0.01 inches).
+    Plotly uses pixel values directly.
+
+    The vertical layout (top to bottom) is:
+        pad_top_px | accent line | accent_gap_px | title | subtitle |
+        legend_gap_px | legend | chart area | source | pad_bottom_px
+    """
+    # Resolved chart parameters
+    chart_w_px: float
+    chart_h_px: float
+    font_size: int
+    font_family: str
+    title_main: Optional[str]
+    title_sub: Optional[str]
+    source_text: Optional[str]
+
+    # Vertical spacing (pixels at 100 DPI)
+    pad_top_px: float = 8
+    accent_gap_px: float = 6
+    title_h_px: float = 0       # 0 when no title
+    sub_h_px: float = 0         # 0 when no subtitle
+    legend_h_px: float = 28
+    legend_gap_px: float = 6
+    source_h_px: float = 0      # 0 when no source
+    pad_bottom_px: float = 45   # room for x-axis tick labels
+
+    # Horizontal margins (pixels)
+    left_margin_px: int = 60
+    right_margin_px: int = 20
+
+    @classmethod
+    def from_params(cls, dimension, font, title, source, *, is_dual: bool = False):
+        """Build LayoutMetrics from user-facing parameter dicts."""
+        if dimension:
+            w = dimension.get("width", DEFAULT_CHART_WIDTH)
+            ar = dimension.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
+        else:
+            w = DEFAULT_CHART_WIDTH
+            ar = DEFAULT_ASPECT_RATIO
+
+        if font:
+            font_size = font.get("size", DEFAULT_FONT_SIZE)
+            font_family = font.get("family", FONT_FAMILY)
+        else:
+            font_size = DEFAULT_FONT_SIZE
+            font_family = FONT_FAMILY
+
+        if title:
+            title_sub = title.get("sub") or title.get("subtitle")
+            title_main = title.get("main")
+        else:
+            title_main = None
+            title_sub = None
+
+        source_text = ("Source: " + ", ".join(source)) if source else None
+
+        return cls(
+            chart_w_px=w,
+            chart_h_px=w / ar,
+            font_size=font_size,
+            font_family=font_family,
+            title_main=title_main,
+            title_sub=title_sub,
+            source_text=source_text,
+            title_h_px=32 if title_main else 0,
+            sub_h_px=24 if title_sub else 0,
+            source_h_px=24 if source_text else 0,
+            right_margin_px=60 if is_dual else 20,
+        )
+
+    @property
+    def top_space_px(self) -> float:
+        return (self.pad_top_px + self.accent_gap_px + self.title_h_px
+                + self.sub_h_px + self.legend_h_px + self.legend_gap_px)
+
+    @property
+    def bottom_space_px(self) -> float:
+        return self.source_h_px + self.pad_bottom_px
+
+    @property
+    def total_w_px(self) -> float:
+        return self.chart_w_px + self.left_margin_px + self.right_margin_px
+
+    @property
+    def total_h_px(self) -> float:
+        return self.chart_h_px + self.top_space_px + self.bottom_space_px
+
+    @property
+    def left_align_x_plotly(self) -> float:
+        """X coordinate in plotly paper space that aligns with y-axis labels."""
+        return -(self.left_margin_px * 0.85) / self.chart_w_px
 
 
 # ---------------------------------------------------------------------------
@@ -240,45 +333,120 @@ def _get_display_name(col, display_names):
     return display_names.get(col, col)
 
 
-def _resolve_dimension(dimension):
-    """Extract chart width (px) and aspect ratio from dimension dict."""
-    if dimension:
-        w = dimension.get("width", DEFAULT_CHART_WIDTH)
-        ar = dimension.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
-    else:
-        w = DEFAULT_CHART_WIDTH
-        ar = DEFAULT_ASPECT_RATIO
-    return w, ar
+# ---------------------------------------------------------------------------
+# Chrome drawing — matplotlib
+# ---------------------------------------------------------------------------
+
+def _draw_accent_line_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
+    """Draw the FT-style accent line at the top of a matplotlib figure."""
+    from matplotlib.lines import Line2D as MplLine2D
+
+    DPI = 100
+    fig_w_px = m.chart_w_px
+    fig_h_px = m.total_h_px
+    accent_x_right = x_left + ACCENT_LINE_LENGTH / fig_w_px
+    accent_y = 1 - m.pad_top_px / fig_h_px
+
+    fig.add_artist(MplLine2D(
+        [x_left, accent_x_right], [accent_y, accent_y],
+        transform=fig.transFigure, color=FT_FONT_COLOR,
+        linewidth=ACCENT_LINE_WIDTH, clip_on=False, solid_capstyle="butt",
+    ))
 
 
-def _resolve_font(font):
-    """Extract font size and family from font dict."""
-    if font:
-        return font.get("size", DEFAULT_FONT_SIZE), font.get("family", FONT_FAMILY)
-    return DEFAULT_FONT_SIZE, FONT_FAMILY
+def _draw_title_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
+    """Draw title and subtitle text on a matplotlib figure."""
+    fig_h_px = m.total_h_px
+    text_y = 1 - (m.pad_top_px + m.accent_gap_px) / fig_h_px
+
+    if m.title_main:
+        fig.text(x_left, text_y, m.title_main,
+                 fontsize=m.font_size + 6, fontweight="bold",
+                 color=FT_FONT_COLOR, va="top", ha="left",
+                 fontfamily=m.font_family)
+        text_y -= m.title_h_px / fig_h_px
+
+    if m.title_sub:
+        fig.text(x_left, text_y, m.title_sub,
+                 fontsize=m.font_size + 2, color=FT_FONT_COLOR,
+                 va="top", ha="left", fontfamily=m.font_family)
 
 
-def _resolve_title(title):
-    """Extract main and sub from title dict. Accepts 'sub' or 'subtitle' key."""
-    if title:
-        sub = title.get("sub") or title.get("subtitle")
-        return title.get("main"), sub
-    return None, None
-
-
-def _resolve_source(source):
-    """Build source text from list."""
-    if source:
-        return "Source: " + ", ".join(source)
-    return None
+def _draw_source_mpl(fig, m: LayoutMetrics, x_left: float) -> None:
+    """Draw source attribution at the bottom of a matplotlib figure."""
+    if not m.source_text:
+        return
+    fig_h_px = m.total_h_px
+    source_y = m.pad_bottom_px / fig_h_px
+    fig.text(x_left, source_y, m.source_text,
+             fontsize=m.font_size - 1, color=FT_FONT_COLOR,
+             va="top", ha="left", fontfamily=m.font_family)
 
 
 # ---------------------------------------------------------------------------
-# Matplotlib helpers
+# Chrome drawing — plotly
+# ---------------------------------------------------------------------------
+
+def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
+    """Draw the FT-style accent line at the top of a plotly figure."""
+    accent_y = 1 + (m.top_space_px - 12) / m.chart_h_px
+    accent_x0 = m.left_align_x_plotly
+    accent_x1 = accent_x0 + ACCENT_LINE_LENGTH / m.chart_w_px
+    fig.add_shape(
+        type="line",
+        x0=accent_x0, x1=accent_x1, y0=accent_y, y1=accent_y,
+        xref="paper", yref="paper",
+        line=dict(color=FT_FONT_COLOR, width=ACCENT_LINE_WIDTH),
+    )
+
+
+def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
+    """Add title/subtitle to plotly layout kwargs."""
+    if not m.title_main and not m.title_sub:
+        return
+
+    parts = []
+    if m.title_main:
+        parts.append(f"<b>{m.title_main}</b>")
+    if m.title_sub:
+        sub_size = m.font_size + 2
+        parts.append(
+            f"<span style='font-size:{sub_size}px; font-weight:normal'>{m.title_sub}</span>"
+        )
+
+    # Align title with y-axis labels (left margin area)
+    title_x = m.left_margin_px * 0.1 / m.total_w_px
+    # 3px pad + accent + gap = ~40px from top
+    title_y = 1 - 40 / m.total_h_px
+
+    layout_kwargs["title"] = dict(
+        text="<br>".join(parts),
+        x=title_x, xanchor="left",
+        y=title_y, yanchor="top",
+        font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
+    )
+
+
+def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
+    """Draw source attribution at the bottom of a plotly figure."""
+    if not m.source_text:
+        return
+    fig.add_annotation(
+        text=m.source_text,
+        x=m.left_align_x_plotly, y=0,
+        xref="paper", yref="paper",
+        xanchor="left", yanchor="top",
+        yshift=-(m.bottom_space_px - m.pad_bottom_px),
+        showarrow=False,
+        font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Annotation helpers — matplotlib
 # ---------------------------------------------------------------------------
 
 def _draw_hlines_mpl(ax, hlines) -> None:
-    """Draw horizontal lines on ax from hlines (list or dict)."""
     if isinstance(hlines, dict):
         items = hlines.items()
     else:
@@ -300,7 +468,6 @@ def _draw_hlines_mpl(ax, hlines) -> None:
 
 
 def _draw_vlines_mpl(ax, vlines) -> None:
-    """Draw vertical lines on ax from vlines (list or dict)."""
     if isinstance(vlines, dict):
         items = vlines.items()
     else:
@@ -341,63 +508,88 @@ def _build_sorted_legend(ax1, ax2, df, left_cols, right_cols, display_names):
     return handles, labels
 
 
+# ---------------------------------------------------------------------------
+# Annotation helpers — plotly
+# ---------------------------------------------------------------------------
+
+def _draw_hlines_plotly(fig, hlines) -> None:
+    if isinstance(hlines, dict):
+        items = hlines.items()
+    else:
+        items = [(None, y) for y in hlines]
+
+    for label, y_val in items:
+        fig.add_hline(y=y_val, line_dash="dash", line_color="gray", line_width=1)
+        if label is not None:
+            fig.add_annotation(
+                text=str(label),
+                x=1, xref="paper",
+                y=y_val, yref="y",
+                showarrow=False,
+                font=dict(size=DEFAULT_FONT_SIZE - 2),
+                xanchor="right",
+            )
+
+
+def _draw_vlines_plotly(fig, vlines) -> None:
+    if isinstance(vlines, dict):
+        items = vlines.items()
+    else:
+        items = [(None, x) for x in vlines]
+
+    for label, x_val in items:
+        fig.add_vline(x=x_val, line_dash="dot", line_color="gray", line_width=1)
+        if label is not None:
+            fig.add_annotation(
+                text=str(label),
+                x=x_val, xref="x",
+                y=1, yref="paper",
+                showarrow=False,
+                font=dict(size=DEFAULT_FONT_SIZE - 2),
+                yanchor="top",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Matplotlib backend
+# ---------------------------------------------------------------------------
+
 def _plot_ts_mpl(df, left_cols, right_cols, display_names,
                  xaxis, yaxis, yaxis2, font, dimension, title, annotations,
                  source, **kwargs):
     """matplotlib implementation — FT-style layout with accent line, titles, source."""
     import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D as MplLine2D
 
-    # --- Resolve parameters ---
-    chart_w_px, aspect_ratio = _resolve_dimension(dimension)
-    chart_h_px = chart_w_px / aspect_ratio
-    font_size, font_family = _resolve_font(font)
-    title_main, title_sub = _resolve_title(title)
-    source_text = _resolve_source(source)
+    is_dual = len(right_cols) > 0
+    m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual)
 
-    # --- Layout calculation (inches at 100 DPI) ---
     DPI = 100
-    chart_w_in = chart_w_px / DPI
-    chart_h_in = chart_h_px / DPI
-
-    # Vertical spacing (inches) for elements above/below chart
-    pad_top = 0.08
-    accent_gap = 0.06
-    title_h = 0.32 if title_main else 0
-    sub_h = 0.24 if title_sub else 0
-    legend_h = 0.28
-    legend_gap = 0.06
-    source_h = 0.24 if source_text else 0
-    pad_bottom = 0.45  # room for x-axis tick labels
-
-    top_space = pad_top + accent_gap + title_h + sub_h + legend_h + legend_gap
-    bottom_space = source_h + pad_bottom
+    chart_w_in = m.chart_w_px / DPI
+    chart_h_in = m.chart_h_px / DPI
+    top_space_in = m.top_space_px / DPI
+    bottom_space_in = m.bottom_space_px / DPI
 
     fig_w_in = chart_w_in
-    fig_h_in = chart_h_in + top_space + bottom_space
+    fig_h_in = chart_h_in + top_space_in + bottom_space_in
 
     fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=DPI)
 
-    # --- Position chart axes [left, bottom, width, height] in figure fraction ---
-    is_dual = len(right_cols) > 0
     ax_left = 0.06
     ax_right_margin = 0.04 if not is_dual else 0.08
-    ax_bottom = bottom_space / fig_h_in
+    ax_bottom = bottom_space_in / fig_h_in
     ax_height = chart_h_in / fig_h_in
     ax_width = 1 - ax_left - ax_right_margin
 
     ax1 = fig.add_axes([ax_left, ax_bottom, ax_width, ax_height])
 
-    # --- Apply FT styling to axes ---
     for spine in ax1.spines.values():
         spine.set_visible(False)
     ax1.grid(True, axis="y", color=GRID_COLOR, alpha=GRID_ALPHA, linewidth=0.6)
     ax1.grid(False, axis="x")
-    ax1.tick_params(axis="x", colors=FT_FONT_COLOR, labelsize=font_size - 2)
-    ax1.tick_params(axis="y", colors=FT_FONT_COLOR, labelsize=font_size - 2, pad=8)
+    ax1.tick_params(axis="x", colors=FT_FONT_COLOR, labelsize=m.font_size - 2)
+    ax1.tick_params(axis="y", colors=FT_FONT_COLOR, labelsize=m.font_size - 2, pad=8)
     ax1.set_axisbelow(True)
 
-    # --- Plot left series ---
     for col in left_cols:
         label = _get_display_name(col, display_names)
         plot_kwargs = dict(label=label, **kwargs)
@@ -405,61 +597,31 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
             plot_kwargs["color"] = LEFT_COLOR
         ax1.plot(df.index, df[col], **plot_kwargs)
 
-    # --- Plot right series on secondary axis ---
     ax2 = None
     if is_dual:
         ax2 = ax1.twinx()
         ax2.grid(False)
         for spine in ax2.spines.values():
             spine.set_visible(False)
-        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR, labelsize=font_size - 2)
+        ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR, labelsize=m.font_size - 2)
         for col in right_cols:
             label = _get_display_name(col, display_names)
             ax2.plot(df.index, df[col], label=label, color=RIGHT_COLOR, **kwargs)
         ax1.tick_params(axis="y", labelcolor=LEFT_COLOR)
 
-    # --- Legend (horizontal, left-aligned, above chart) ---
     handles, labels = _build_sorted_legend(ax1, ax2, df, left_cols, right_cols,
                                            display_names)
     if handles:
         ax1.legend(handles, labels,
                    loc="lower left", bbox_to_anchor=(0, 1.01),
                    ncol=len(labels), frameon=False,
-                   fontsize=font_size - 1, handlelength=2.5)
+                   fontsize=m.font_size - 1, handlelength=2.5)
 
-    # --- Accent line (short bar, top-left, aligned with y-axis/title) ---
-    x_left = ax_left
-    accent_x_right = x_left + ACCENT_LINE_LENGTH / (fig_w_in * DPI)
-    accent_y = 1 - pad_top / fig_h_in
-    fig.add_artist(MplLine2D(
-        [x_left, accent_x_right], [accent_y, accent_y],
-        transform=fig.transFigure, color=FT_FONT_COLOR,
-        linewidth=ACCENT_LINE_WIDTH, clip_on=False, solid_capstyle="butt",
-    ))
+    # Chrome elements — shared layout
+    _draw_accent_line_mpl(fig, m, ax_left)
+    _draw_title_mpl(fig, m, ax_left)
+    _draw_source_mpl(fig, m, ax_left)
 
-    # --- Title (bold, left-aligned, font_size + 6 = 20px) ---
-    text_y = accent_y - accent_gap / fig_h_in
-    if title_main:
-        fig.text(x_left, text_y, title_main,
-                 fontsize=font_size + 6, fontweight="bold",
-                 color=FT_FONT_COLOR, va="top", ha="left",
-                 fontfamily=font_family)
-        text_y -= title_h / fig_h_in
-
-    # --- Subtitle (lighter, left-aligned, font_size + 2 = 16px) ---
-    if title_sub:
-        fig.text(x_left, text_y, title_sub,
-                 fontsize=font_size + 2, color=FT_FONT_COLOR,
-                 va="top", ha="left", fontfamily=font_family)
-
-    # --- Source (bottom-left, aligned with title) ---
-    if source_text:
-        source_y = pad_bottom / fig_h_in
-        fig.text(x_left, source_y, source_text,
-                 fontsize=font_size - 1, color=FT_FONT_COLOR,
-                 va="top", ha="left", fontfamily=font_family)
-
-    # --- Annotations (hline / vline) ---
     if annotations:
         hlines = _normalize_annot_lines(annotations.get("hline"))
         vlines = _normalize_annot_lines(annotations.get("vline"))
@@ -468,7 +630,6 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
         if vlines:
             _draw_vlines_mpl(ax1, vlines)
 
-    # --- Axis ranges and labels ---
     if yaxis and yaxis.get("range"):
         r = yaxis["range"]
         ax1.set_ylim(r[0], r[1])
@@ -489,48 +650,8 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
 
 
 # ---------------------------------------------------------------------------
-# Plotly helpers
+# Plotly backend
 # ---------------------------------------------------------------------------
-
-def _draw_hlines_plotly(fig, hlines) -> None:
-    """Add horizontal reference lines to a plotly figure."""
-    if isinstance(hlines, dict):
-        items = hlines.items()
-    else:
-        items = [(None, y) for y in hlines]
-
-    for label, y_val in items:
-        fig.add_hline(y=y_val, line_dash="dash", line_color="gray", line_width=1)
-        if label is not None:
-            fig.add_annotation(
-                text=str(label),
-                x=1, xref="paper",
-                y=y_val, yref="y",
-                showarrow=False,
-                font=dict(size=DEFAULT_FONT_SIZE - 2),
-                xanchor="right",
-            )
-
-
-def _draw_vlines_plotly(fig, vlines) -> None:
-    """Add vertical reference lines to a plotly figure."""
-    if isinstance(vlines, dict):
-        items = vlines.items()
-    else:
-        items = [(None, x) for x in vlines]
-
-    for label, x_val in items:
-        fig.add_vline(x=x_val, line_dash="dot", line_color="gray", line_width=1)
-        if label is not None:
-            fig.add_annotation(
-                text=str(label),
-                x=x_val, xref="x",
-                y=1, yref="paper",
-                showarrow=False,
-                font=dict(size=DEFAULT_FONT_SIZE - 2),
-                yanchor="top",
-            )
-
 
 def _plot_ts_plotly(df, left_cols, right_cols, display_names,
                     xaxis, yaxis, yaxis2, font, dimension, title, annotations,
@@ -538,16 +659,9 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     """plotly implementation — FT-style layout with accent line, titles, source."""
     import plotly.graph_objects as go
 
-    # --- Resolve parameters ---
-    chart_w_px, aspect_ratio = _resolve_dimension(dimension)
-    chart_h_px = chart_w_px / aspect_ratio
-    font_size, font_family = _resolve_font(font)
-    title_main, title_sub = _resolve_title(title)
-    source_text = _resolve_source(source)
-
     is_dual = len(right_cols) > 0
+    m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual)
 
-    # --- Create figure ---
     if is_dual:
         from plotly.subplots import make_subplots
         fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -555,7 +669,6 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     else:
         fig = go.Figure()
 
-    # --- Add left traces ---
     sorted_left = _sorted_cols_by_last_value(df, left_cols)
     for col in sorted_left:
         name = _get_display_name(col, display_names)
@@ -570,7 +683,6 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         else:
             fig.add_trace(go.Scatter(**trace_kwargs))
 
-    # --- Add right traces ---
     if is_dual:
         sorted_right = _sorted_cols_by_last_value(df, right_cols)
         for col in sorted_right:
@@ -585,112 +697,50 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
                 secondary_y=True,
             )
 
-    # --- Layout margins (pixel-precise, top to bottom) ---
-    # 3px top pad | accent line | 5px gap | title | subtitle | 5px gap | legend | range sel
-    top_margin = 3                          # top edge to accent line
-    top_margin += 30                         # accent line to title
-    if title_main:
-        top_margin += 20                    # title text height
-    if title_sub:
-        top_margin += 20                    # subtitle text height
-    top_margin += 5                         # subtitle/title to legend
-    top_margin += 15                        # legend row
+    # Build layout using shared metrics
+    top_margin = int(m.top_space_px)
+    bottom_margin = int(m.bottom_space_px)
+    total_w = int(m.total_w_px)
+    total_h = int(m.total_h_px)
 
-    bottom_margin = 40
-    if source_text:
-        bottom_margin += 30
-
-    left_margin = 60
-    right_margin = 20 if not is_dual else 60
-
-    total_w = chart_w_px + left_margin + right_margin
-    total_h = int(chart_h_px) + top_margin + bottom_margin
-
-    # --- X-axis config ---
-    xaxis_cfg = dict(
-        type="date",
-        showgrid=False,
-    )
-
-    # --- Build layout ---
     layout_kwargs = dict(
-        xaxis=xaxis_cfg,
+        xaxis=dict(type="date", showgrid=False),
         width=total_w,
         height=total_h,
-        margin=dict(l=left_margin, r=right_margin, t=top_margin, b=bottom_margin),
-        font=dict(family=font_family, size=font_size - 1, color=FT_FONT_COLOR),
+        margin=dict(l=m.left_margin_px, r=m.right_margin_px,
+                    t=top_margin, b=bottom_margin),
+        font=dict(family=m.font_family, size=m.font_size - 1, color=FT_FONT_COLOR),
         legend=dict(
             orientation="h",
             x=0, y=0.95,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
-            font=dict(size=font_size - 1, color=FT_FONT_COLOR),
+            font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
         ),
         yaxis=dict(
             showgrid=True, gridcolor=GRID_COLOR, zeroline=False,
-            ticksuffix="  ",  # small gap between y-axis labels and gridlines
+            ticksuffix="  ",
         ),
     )
 
     if not is_dual:
         layout_kwargs["template"] = "pxts"
 
-    # --- Title (font_size + 6 = 20px) / Subtitle (font_size + 2 = 16px) ---
-    if title_main or title_sub:
-        parts = []
-        if title_main:
-            parts.append(f"<b>{title_main}</b>")
-        if title_sub:
-            sub_size = font_size + 2
-            parts.append(
-                f"<span style='font-size:{sub_size}px; font-weight:normal'>{title_sub}</span>"
-            )
-        # Align title with y-axis labels (left margin area)
-        title_x = left_margin * 0.1 / total_w
-        # Position title 8px from top of figure (3px pad + accent + 5px gap)
-        title_y = 1 - 40 / total_h
-        layout_kwargs["title"] = dict(
-            text="<br>".join(parts),
-            x=title_x, xanchor="left",
-            y=title_y, yanchor="top",
-            font=dict(color=FT_FONT_COLOR, size=font_size + 6, family=font_family),
-        )
+    # Chrome elements — shared layout
+    _draw_title_plotly(fig, m, layout_kwargs)
 
     fig.update_layout(**layout_kwargs)
 
-    # --- Font override ---
     if font:
         fig.update_layout(font=dict(
-            size=font.get("size", font_size),
-            family=font.get("family", font_family),
+            size=font.get("size", m.font_size),
+            family=font.get("family", m.font_family),
             color=FT_FONT_COLOR,
         ))
 
-    # --- Accent line (short bar, top-left, aligned with title/y-axis labels) ---
-    accent_y = 1 + (top_margin - 12) / chart_h_px
-    # paper x=0 is plot area left edge; shift left into margin to align with y-labels
-    accent_x0 = -(left_margin * 0.85) / chart_w_px
-    accent_x1 = accent_x0 + ACCENT_LINE_LENGTH / chart_w_px
-    fig.add_shape(
-        type="line",
-        x0=accent_x0, x1=accent_x1, y0=accent_y, y1=accent_y,
-        xref="paper", yref="paper",
-        line=dict(color=FT_FONT_COLOR, width=ACCENT_LINE_WIDTH),
-    )
+    _draw_accent_line_plotly(fig, m)
+    _draw_source_plotly(fig, m)
 
-    # --- Source annotation at bottom, aligned with title/y-axis labels ---
-    if source_text:
-        fig.add_annotation(
-            text=source_text,
-            x=accent_x0, y=0,
-            xref="paper", yref="paper",
-            xanchor="left", yanchor="top",
-            yshift=-(bottom_margin - 40),
-            showarrow=False,
-            font=dict(size=font_size - 1, color=FT_FONT_COLOR),
-        )
-
-    # --- Dual axis styling ---
     if is_dual:
         fig.update_yaxes(tickfont=dict(color=LEFT_COLOR), secondary_y=False)
         fig.update_yaxes(tickfont=dict(color=RIGHT_COLOR), secondary_y=True)
@@ -707,7 +757,6 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
                 secondary_y=False,
             )
 
-    # --- Y-axis range ---
     if yaxis and yaxis.get("range"):
         fig.update_layout(yaxis=dict(range=list(yaxis["range"])))
     if yaxis and yaxis.get("name") and not is_dual:
@@ -715,14 +764,12 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     if yaxis2 and yaxis2.get("range"):
         fig.update_layout(yaxis2=dict(range=list(yaxis2["range"])))
 
-    # --- X-axis range ---
     if xaxis and xaxis.get("range"):
         r = xaxis["range"]
         fig.update_xaxes(range=[str(pd.Timestamp(r[0])), str(pd.Timestamp(r[1]))])
     if xaxis and xaxis.get("name"):
         fig.update_xaxes(title_text=xaxis["name"])
 
-    # --- Annotations (hline / vline) ---
     if annotations:
         hlines = _normalize_annot_lines(annotations.get("hline"))
         vlines = _normalize_annot_lines(annotations.get("vline"))
@@ -759,8 +806,8 @@ def tsplot(df, *,
         yaxis2: dict with required "cols" key and optional: range, name.
             Triggers dual-axis mode.
         font: dict with optional keys: size, family.
-        dimension: dict with optional keys: width (default 1000),
-            aspect_ratio (default 1.618). Governs the chart area only —
+        dimension: dict with optional keys: width (default 550),
+            aspect_ratio (default 1.5). Governs the chart area only —
             title, legend, source are outside this dimension.
         title: dict with optional keys: main (str), sub (str).
         annotations: dict with optional keys: hline, vline. Each is list or dict.
