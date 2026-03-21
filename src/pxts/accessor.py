@@ -55,24 +55,18 @@ class TsAccessor:
         self,
         cols=None,
         title: str = "",
-        subtitle: str = "",
-        labels: bool = False,
         hlines=None,
         vlines=None,
-        date_format=None,
         backend=None,
         **kwargs: Any,
     ):
-        """Plot time series columns as line charts. See pxts.plots.plot for details."""
+        """Plot time series columns as line charts. See pxts.plots.tsplot for details."""
         return _plot(
             self._obj,
             cols=cols,
             title=title,
-            subtitle=subtitle,
-            labels=labels,
             hlines=hlines,
             vlines=vlines,
-            date_format=date_format,
             backend=backend,
             **kwargs,
         )
@@ -82,25 +76,19 @@ class TsAccessor:
         left,
         right,
         title: str = "",
-        subtitle: str = "",
-        labels: bool = False,
         hlines=None,
         vlines=None,
-        date_format=None,
         backend=None,
         **kwargs: Any,
     ):
-        """Plot time series with two y-axes. See pxts.plots.plot_dual for details."""
+        """Plot time series with two y-axes. See pxts.plots.tsplot_dual for details."""
         return _plot_dual(
             self._obj,
             left=left,
             right=right,
             title=title,
-            subtitle=subtitle,
-            labels=labels,
             hlines=hlines,
             vlines=vlines,
-            date_format=date_format,
             backend=backend,
             **kwargs,
         )

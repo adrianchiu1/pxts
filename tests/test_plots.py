@@ -33,7 +33,7 @@ class TestTsplotMatplotlib:
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_title_and_subtitle(self, ts_df):
+    def test_title(self, ts_df):
         """title rendered without error."""
         fig = tsplot(ts_df, title="My Title", backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
@@ -53,7 +53,6 @@ class TestTsplotMatplotlib:
 
     def test_vlines_as_list(self, ts_df):
         """vlines as list → vertical lines drawn without error."""
-        import pandas as pd
         vline_date = pd.Timestamp("2024-01-03")
         fig = tsplot(ts_df, vlines=[vline_date], backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
@@ -82,7 +81,7 @@ class TestTsplotPlotly:
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 1
 
-    def test_title_and_subtitle(self, ts_df):
+    def test_title(self, ts_df):
         """title -> Figure has title set."""
         fig = tsplot(ts_df, title="My Title", backend="plotly")
         assert isinstance(fig, go.Figure)
@@ -100,68 +99,11 @@ class TestTsplotPlotly:
         with pytest.raises(ValueError, match="UNKNOWN"):
             tsplot(ts_df, cols=["UNKNOWN"], backend="plotly")
 
-
-# ---------------------------------------------------------------------------
-# Phase 6: Plotly date axis autoformatting and legend fixes
-# ---------------------------------------------------------------------------
-
-class TestTsplotPlotlyPhase6Fixes:
-    def test_tickformatstops_set_when_no_date_format(self, ts_df):
-        """date_format=None → x-axis uses tickformatstops (zoom-responsive), not a static tickformat."""
-        fig = tsplot(ts_df, backend="plotly")
-        xaxis = fig.layout.xaxis
-        assert xaxis.tickformatstops, "tickformatstops must be set and non-empty"
-        # Static tickformat should NOT be set when using tickformatstops
-        assert not xaxis.tickformat, (
-            f"tickformat should be empty when tickformatstops is used, got: {xaxis.tickformat!r}"
-        )
-
-    def test_tickformat_override_uses_static_string(self, ts_df):
-        """date_format='%Y' → x-axis uses static tickformat string, not tickformatstops."""
-        fig = tsplot(ts_df, date_format="%Y", backend="plotly")
-        xaxis = fig.layout.xaxis
-        assert xaxis.tickformat == "%Y", f"Expected '%Y', got {xaxis.tickformat!r}"
-        assert not xaxis.tickformatstops, (
-            "tickformatstops should not be set when date_format override is used"
-        )
-
     def test_showlegend_true_in_layout(self, ts_df):
         """tsplot plotly → showlegend=True is set in the pxts template layout."""
         fig = tsplot(ts_df, backend="plotly")
-        # showlegend=True is set in the pxts template layout (not directly on fig.layout)
         template_showlegend = fig.layout.template.layout.showlegend
-        assert template_showlegend is True, (
-            f"showlegend must be True in template layout, got: {template_showlegend!r}"
-        )
-
-    def test_year_annotation_present(self, ts_df):
-        """tsplot plotly with auto date_format → year annotation added to figure."""
-        fig = tsplot(ts_df, backend="plotly")
-        annotation_texts = [a.text for a in fig.layout.annotations]
-        # The year of the last index date should appear somewhere in annotations
-        import pandas as pd
-        expected_year = str(ts_df.index[-1].year)
-        assert any(expected_year in t for t in annotation_texts), (
-            f"Year annotation '{expected_year}' not found. Annotations: {annotation_texts}"
-        )
-
-    def test_year_annotation_absent_with_date_format_override(self, ts_df):
-        """tsplot plotly with date_format override → no year annotation (subtitle may exist but not year)."""
-        fig = tsplot(ts_df, date_format="%Y-%m-%d", backend="plotly")
-        import pandas as pd
-        expected_year = str(ts_df.index[-1].year)
-        annotation_texts = [a.text for a in fig.layout.annotations]
-        assert not any(
-            t == expected_year for t in annotation_texts
-        ), (
-            f"Year annotation should not appear with date_format override. Found: {annotation_texts}"
-        )
-
-    def test_tickformatstops_has_four_tiers(self, ts_df):
-        """tickformatstops must have exactly 4 tiers (decade, year, month, day)."""
-        fig = tsplot(ts_df, backend="plotly")
-        stops = fig.layout.xaxis.tickformatstops
-        assert len(stops) == 4, f"Expected 4 tickformatstops tiers, got {len(stops)}"
+        assert template_showlegend is True
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +117,7 @@ class TestTsplotDualMatplotlib:
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
-    def test_title_and_subtitle(self, ts_df):
+    def test_title(self, ts_df):
         """title rendered without error."""
         fig = tsplot_dual(
             ts_df, left=["A"], right=["B"],
@@ -200,16 +142,8 @@ class TestTsplotDualPlotly:
     def test_showlegend_true_in_layout(self, ts_df):
         """tsplot_dual plotly → showlegend=True is set in the pxts template layout."""
         fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
-        # showlegend=True is set in the pxts template layout (not directly on fig.layout)
         template_showlegend = fig.layout.template.layout.showlegend
-        assert template_showlegend is True, (
-            f"showlegend must be True in template layout, got: {template_showlegend!r}"
-        )
-
-    def test_tickformatstops_set_when_no_date_format(self, ts_df):
-        """tsplot_dual date_format=None → x-axis uses tickformatstops."""
-        fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
-        assert fig.layout.xaxis.tickformatstops, "dual: tickformatstops must be set"
+        assert template_showlegend is True
 
 
 # ---------------------------------------------------------------------------
@@ -234,58 +168,24 @@ class TestValidation:
 
 
 # ---------------------------------------------------------------------------
-# DEP-02: once-per-session adjustText missing warning
-# ---------------------------------------------------------------------------
-
-class TestAdjustTextWarning:
-    def test_adjusttext_warning_emitted_once(self, ts_df):
-        """First call with labels=True when adjustText absent → UserWarning with 'adjustText'.
-        Second call → no warning (module-level flag prevents repeat).
-        """
-        import pxts.plots as plots_module
-        import unittest.mock as mock
-
-        # Reset the module-level flag so we start fresh
-        plots_module._ADJUSTTEXT_WARNED = False
-
-        # Patch adjustText import inside _add_mpl_end_labels to simulate absence
-        with mock.patch.dict("sys.modules", {"adjustText": None}):
-            # First call — should emit exactly one UserWarning mentioning adjustText
-            with pytest.warns(UserWarning, match="adjustText") as warning_list:
-                fig1 = tsplot(ts_df, labels=True, backend="matplotlib")
-            plt.close(fig1)
-            assert len(warning_list) == 1
-
-            # Second call — flag is now True, no warning should be emitted
-            import warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter("error")  # Any warning would become an error
-                fig2 = tsplot(ts_df, labels=True, backend="matplotlib")
-            plt.close(fig2)
-
-        # Restore flag to False for other tests
-        plots_module._ADJUSTTEXT_WARNED = False
-
-
-# ---------------------------------------------------------------------------
 # FIX-05: parameter type validation in tsplot and tsplot_dual
 # ---------------------------------------------------------------------------
 
 class TestParameterTypeValidation:
     def test_hlines_scalar_float(self, ts_df):
-        """tsplot(hlines=42.0) → succeeds and returns a figure (scalar normalized to [42.0])."""
+        """tsplot(hlines=42.0) → succeeds (scalar normalized to [42.0])."""
         fig = tsplot(ts_df, hlines=42.0, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
     def test_hlines_scalar_int(self, ts_df):
-        """tsplot(hlines=0) → succeeds and returns a figure (int zero normalized to [0])."""
+        """tsplot(hlines=0) → succeeds (int zero normalized to [0])."""
         fig = tsplot(ts_df, hlines=0, backend="matplotlib")
         assert isinstance(fig, matplotlib.figure.Figure)
         plt.close(fig)
 
     def test_hlines_bool_raises(self, ts_df):
-        """tsplot(hlines=True) → ValueError mentioning 'hlines' (bool excluded from scalar normalization)."""
+        """tsplot(hlines=True) → ValueError (bool excluded from scalar normalization)."""
         with pytest.raises(ValueError, match="hlines"):
             tsplot(ts_df, hlines=True, backend="matplotlib")
 
@@ -424,50 +324,10 @@ class TestAxisLimits:
 
 
 # ---------------------------------------------------------------------------
-# PLOTLY-01 / PLOTLY-02: _PLOTLY_TICKFORMATSTOPS — zoom-responsive date axis
+# Range selector buttons (plotly)
 # ---------------------------------------------------------------------------
 
-class TestPlotlyTickformatstops:
-    """Tests for _PLOTLY_TICKFORMATSTOPS constant and its integration into tsplot/tsplot_dual."""
-
-    def test_constant_has_four_tiers(self):
-        """_PLOTLY_TICKFORMATSTOPS must have exactly 4 zoom tiers."""
-        from pxts.plots import _PLOTLY_TICKFORMATSTOPS
-        assert len(_PLOTLY_TICKFORMATSTOPS) == 4
-
-    def test_constant_tiers_have_required_keys(self):
-        """Each tier must have dtickrange and value keys."""
-        from pxts.plots import _PLOTLY_TICKFORMATSTOPS
-        for tier in _PLOTLY_TICKFORMATSTOPS:
-            assert "dtickrange" in tier
-            assert "value" in tier
-
-    def test_tsplot_plotly_uses_tickformatstops_when_no_date_format(self, ts_df):
-        """tsplot plotly backend uses tickformatstops (not tickformat) by default."""
-        fig = tsplot(ts_df, backend="plotly")
-        assert fig.layout.xaxis.tickformatstops, "tickformatstops should be present"
-        assert not fig.layout.xaxis.tickformat, "tickformat should be absent"
-
-    def test_tsplot_plotly_uses_tickformat_when_date_format_given(self, ts_df):
-        """tsplot plotly backend uses static tickformat when date_format is provided."""
-        fig = tsplot(ts_df, date_format="%Y", backend="plotly")
-        assert fig.layout.xaxis.tickformat == "%Y"
-        assert not fig.layout.xaxis.tickformatstops, "tickformatstops should be absent"
-
-    def test_tsplot_dual_plotly_uses_tickformatstops(self, ts_df):
-        """tsplot_dual plotly backend uses tickformatstops by default."""
-        cols = list(ts_df.columns)
-        fig = tsplot_dual(ts_df, left=[cols[0]], right=[cols[1]], backend="plotly")
-        assert fig.layout.xaxis.tickformatstops, "dual: tickformatstops should be present"
-
-
-# ---------------------------------------------------------------------------
-# Phase 7: Interactive Plotly time series charts
-# ---------------------------------------------------------------------------
-
-class TestPhase7RangeNav:
-    """PLT7-01 / PLT7-02: Range selector buttons."""
-
+class TestRangeSelector:
     def test_tsplot_has_six_range_buttons(self, ts_df):
         """tsplot plotly default -> rangeselector with 6 buttons."""
         fig = tsplot(ts_df, backend="plotly")
@@ -490,29 +350,32 @@ class TestPhase7RangeNav:
         assert len(rs.buttons) == 6
 
 
-class TestPlotlyTemplate:
-    """Plotly pxts template configuration tests."""
+# ---------------------------------------------------------------------------
+# Plotly template
+# ---------------------------------------------------------------------------
 
+class TestPlotlyTemplate:
     def test_plotly_template_has_tighter_margins(self, ts_df):
         """pxts Plotly template margin is set (not default None values)."""
         import plotly.io as pio
         template = pio.templates["pxts"]
         m = template.layout.margin
-        # Any explicit margin means we set it (Plotly defaults are None)
         assert m.l is not None or m.r is not None, (
             "Template margin not set — whitespace fix not applied"
         )
 
 
-class TestPhase7DualAxisLabels:
-    """PLT7-07: left_label and right_label axis title parameters."""
+# ---------------------------------------------------------------------------
+# Dual axis labels (plotly)
+# ---------------------------------------------------------------------------
 
+class TestDualAxisLabels:
     def test_left_label_sets_yaxis_title(self, ts_df):
         """left_label='Energy' sets primary y-axis title text."""
         fig = tsplot_dual(ts_df, left=["A"], right=["B"],
                           left_label="Energy", backend="plotly")
         yaxis_title = fig.layout.yaxis.title.text
-        assert yaxis_title == "Energy", f"Expected 'Energy', got {yaxis_title!r}"
+        assert yaxis_title == "Energy"
 
     def test_left_label_title_colored_left_color(self, ts_df):
         """left_label title font color matches LEFT_COLOR."""
@@ -520,16 +383,14 @@ class TestPhase7DualAxisLabels:
         fig = tsplot_dual(ts_df, left=["A"], right=["B"],
                           left_label="Energy", backend="plotly")
         title_color = fig.layout.yaxis.title.font.color
-        assert title_color == LEFT_COLOR, (
-            f"Expected {LEFT_COLOR}, got {title_color!r}"
-        )
+        assert title_color == LEFT_COLOR
 
     def test_right_label_sets_yaxis2_title(self, ts_df):
         """right_label='Steam' sets secondary y-axis title text."""
         fig = tsplot_dual(ts_df, left=["A"], right=["B"],
                           right_label="Steam", backend="plotly")
         yaxis2_title = fig.layout.yaxis2.title.text
-        assert yaxis2_title == "Steam", f"Expected 'Steam', got {yaxis2_title!r}"
+        assert yaxis2_title == "Steam"
 
     def test_right_label_title_colored_right_color(self, ts_df):
         """right_label title font color matches RIGHT_COLOR."""
@@ -537,21 +398,15 @@ class TestPhase7DualAxisLabels:
         fig = tsplot_dual(ts_df, left=["A"], right=["B"],
                           right_label="Steam", backend="plotly")
         title_color = fig.layout.yaxis2.title.font.color
-        assert title_color == RIGHT_COLOR, (
-            f"Expected {RIGHT_COLOR}, got {title_color!r}"
-        )
+        assert title_color == RIGHT_COLOR
 
     def test_no_labels_means_no_axis_title(self, ts_df):
         """tsplot_dual with no left_label/right_label -> no y-axis title set."""
         fig = tsplot_dual(ts_df, left=["A"], right=["B"], backend="plotly")
-        # When None, Plotly leaves title.text as None or empty
-        assert not fig.layout.yaxis.title.text, (
-            f"Unexpected yaxis title: {fig.layout.yaxis.title.text!r}"
-        )
+        assert not fig.layout.yaxis.title.text
 
     def test_left_right_labels_mpl_no_error(self, ts_df):
         """left_label/right_label accepted by matplotlib backend without error."""
-        import matplotlib.figure
         fig = tsplot_dual(ts_df, left=["A"], right=["B"],
                           left_label="LHS", right_label="RHS",
                           backend="matplotlib")
