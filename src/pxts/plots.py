@@ -402,8 +402,8 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
         spine.set_visible(False)
     ax1.grid(True, axis="y", color=GRID_COLOR, alpha=GRID_ALPHA, linewidth=0.6)
     ax1.grid(False, axis="x")
-    ax1.tick_params(axis="x", colors=FT_FONT_COLOR, labelsize=font_size - 1)
-    ax1.tick_params(axis="y", colors=FT_FONT_COLOR, labelsize=font_size - 1, pad=8)
+    ax1.tick_params(axis="x", colors=FT_FONT_COLOR, labelsize=font_size - 2)
+    ax1.tick_params(axis="y", colors=FT_FONT_COLOR, labelsize=font_size - 2, pad=8)
     ax1.set_axisbelow(True)
 
     # --- Plot left series ---
@@ -461,11 +461,11 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
                  fontsize=font_size + 2, color=FT_FONT_COLOR,
                  va="top", ha="left", fontfamily=font_family)
 
-    # --- Source (bottom-left) ---
+    # --- Source (bottom-left, aligned with title) ---
     if source_text:
         source_y = pad_bottom / fig_h_in
         fig.text(x_left, source_y, source_text,
-                 fontsize=font_size - 2, color=FT_FONT_COLOR,
+                 fontsize=font_size - 1, color=FT_FONT_COLOR,
                  va="top", ha="left", fontfamily=font_family)
 
     # --- Annotations (hline / vline) ---
@@ -597,12 +597,12 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     # --- Layout margins ---
     top_margin = 20  # base padding above accent line
     if title_main:
-        top_margin += 34
+        top_margin += 40
     if title_sub:
-        top_margin += 24
-    top_margin += 28  # legend row
-    top_margin += 28  # range selector row
-    top_margin += 10  # accent line thickness + gap
+        top_margin += 26
+    top_margin += 30  # legend row
+    top_margin += 30  # range selector row
+    top_margin += 12  # accent line thickness + gap
 
     bottom_margin = 40
     if source_text:
@@ -624,7 +624,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             bgcolor="rgba(255,255,255,0.8)",
             activecolor=LEFT_COLOR,
             x=0, y=1.0, xanchor="left", yanchor="bottom",
-            font=dict(size=font_size),
+            font=dict(size=font_size - 1),
         ),
         rangeslider=dict(visible=False),
     )
@@ -635,10 +635,10 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         width=total_w,
         height=total_h,
         margin=dict(l=left_margin, r=right_margin, t=top_margin, b=bottom_margin),
-        font=dict(family=font_family, size=font_size, color=FT_FONT_COLOR),
+        font=dict(family=font_family, size=font_size - 1, color=FT_FONT_COLOR),
         legend=dict(
             orientation="h",
-            x=0, y=1.07,
+            x=0, y=1.08,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=font_size - 1, color=FT_FONT_COLOR),
@@ -692,16 +692,16 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         line=dict(color=FT_FONT_COLOR, width=ACCENT_LINE_WIDTH),
     )
 
-    # --- Source annotation at bottom ---
+    # --- Source annotation at bottom, aligned with title/y-axis labels ---
     if source_text:
         fig.add_annotation(
             text=source_text,
-            x=0, y=0,
+            x=accent_x0, y=0,
             xref="paper", yref="paper",
             xanchor="left", yanchor="top",
             yshift=-(bottom_margin - 15),
             showarrow=False,
-            font=dict(size=font_size - 2, color=FT_FONT_COLOR),
+            font=dict(size=font_size - 1, color=FT_FONT_COLOR),
         )
 
     # --- Dual axis styling ---

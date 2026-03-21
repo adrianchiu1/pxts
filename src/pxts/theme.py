@@ -59,9 +59,10 @@ DARK_PLOT_COLOR: str = "#16213e"          # Slightly lighter navy for plot area
 DARK_GRID_COLOR: str = "#2d2d5a"          # Muted purple-navy grid
 DARK_FONT_COLOR: str = "#e0e0e0"          # Light gray text for readability
 
-# Font — Helvetica Neue closest to FT's MetricWeb; degrades gracefully.
+# Font — Outfit from Google Fonts; degrades to Helvetica/Arial.
 DEFAULT_FONT_SIZE: int = 14
-FONT_FAMILY: str = "Helvetica Neue, Helvetica, Arial, sans-serif"
+FONT_FAMILY: str = "Outfit, Helvetica Neue, Helvetica, Arial, sans-serif"
+OUTFIT_FONT_URL: str = "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
 
 # Chart dimension defaults (FT-style: 600px wide, 1.5 aspect ratio)
 DEFAULT_CHART_WIDTH: int = 600
@@ -74,6 +75,46 @@ ACCENT_LINE_LENGTH: int = 60
 # ---------------------------------------------------------------------------
 # Backend-specific theme application
 # ---------------------------------------------------------------------------
+
+def _load_outfit_font() -> None:
+    """Load the Outfit Google Font for use in notebooks and matplotlib.
+
+    In Jupyter: injects a <style> tag with @import for the font.
+    For matplotlib: downloads the .ttf and registers it with font_manager.
+    Silently skips on any failure (network, permissions, etc.).
+    """
+    # Jupyter / IPython — inject CSS @import
+    try:
+        from IPython.display import display, HTML
+        display(HTML(
+            f'<style>@import url("{OUTFIT_FONT_URL}");</style>'
+        ))
+    except Exception:
+        pass
+
+    # matplotlib — download and register the font
+    try:
+        import matplotlib.font_manager as fm
+        from pathlib import Path
+        import urllib.request
+        import tempfile
+
+        # Check if Outfit is already registered
+        available = {f.name for f in fm.fontManager.ttflist}
+        if "Outfit" in available:
+            return
+
+        # Download a single weight (400 regular) .ttf from Google Fonts
+        ttf_url = "https://fonts.gstatic.com/s/outfit/v11/QGYyz_MVcBeNP4NjuGObqx1XmO1I4e.ttf"
+        font_dir = Path(tempfile.gettempdir()) / "pxts_fonts"
+        font_dir.mkdir(exist_ok=True)
+        font_path = font_dir / "Outfit-Regular.ttf"
+        if not font_path.exists():
+            urllib.request.urlretrieve(ttf_url, font_path)
+        fm.fontManager.addfont(str(font_path))
+    except Exception:
+        pass
+
 
 def _apply_plotly_theme() -> None:
     """Register and set the pxts plotly template as the session default."""
@@ -176,5 +217,6 @@ def apply_theme() -> None:
 
     Note: figure.figsize is NOT set — matplotlib is window-responsive per user decision.
     """
+    _load_outfit_font()
     _apply_plotly_theme()
     _apply_matplotlib_theme()
