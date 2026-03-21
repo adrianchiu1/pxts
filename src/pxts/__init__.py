@@ -20,8 +20,9 @@ Public API (all accessible via star import):
 The .ts accessor is registered automatically on import of this module.
 Usage: df.ts.set_tz() / df.ts.to_dense(freq='D') / df.ts.infer_freq()
 
-The pxts visual theme (Okabe-Ito palette, white background, gray grid) is applied
+The pxts visual theme (FT palette by default, white background, gray grid) is applied
 automatically at import time to all installed backends (plotly and/or matplotlib).
+The Okabe-Ito colorblind-safe palette is available as OKABE_ITO_COLORS.
 
 Global side-effect: `apply_theme()` is called automatically at import time. This
 registers the pxts Plotly template as the default template and updates matplotlib
@@ -44,7 +45,7 @@ from pxts.core import validate_ts, set_tz, to_dense, infer_freq  # noqa: E402
 from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .ts accessor
 from pxts.io import read_ts, write_ts, read_bdh  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
-from pxts.theme import apply_theme  # noqa: E402
+from pxts.theme import apply_theme, FT_COLORS, OKABE_ITO_COLORS  # noqa: E402
 from pxts.plots import tsplot  # noqa: E402
 
 apply_theme()  # Runs once at import — registers plotly template + sets matplotlib rcParams
@@ -61,6 +62,8 @@ __all__ = [
     "get_backend",
     "IS_JUPYTER",
     "tsplot",
+    "FT_COLORS",
+    "OKABE_ITO_COLORS",
 ]
 
 __version__ = "0.1.0"

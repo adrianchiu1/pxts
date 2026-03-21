@@ -26,6 +26,7 @@ from pxts.theme import (
     FONT_FAMILY,
     FT_FONT_COLOR,
     ACCENT_LINE_WIDTH,
+    ACCENT_LINE_LENGTH,
     DEFAULT_CHART_WIDTH,
     DEFAULT_ASPECT_RATIO,
 )
@@ -368,13 +369,13 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
     chart_h_in = chart_h_px / DPI
 
     # Vertical spacing (inches) for elements above/below chart
-    pad_top = 0.12
-    accent_gap = 0.12
-    title_h = 0.38 if title_main else 0
-    sub_h = 0.28 if title_sub else 0
-    legend_h = 0.32
-    legend_gap = 0.08
-    source_h = 0.28 if source_text else 0
+    pad_top = 0.08
+    accent_gap = 0.06
+    title_h = 0.32 if title_main else 0
+    sub_h = 0.24 if title_sub else 0
+    legend_h = 0.28
+    legend_gap = 0.06
+    source_h = 0.24 if source_text else 0
     pad_bottom = 0.45  # room for x-axis tick labels
 
     top_space = pad_top + accent_gap + title_h + sub_h + legend_h + legend_gap
@@ -433,29 +434,29 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
                    ncol=len(labels), frameon=False,
                    fontsize=font_size - 1, handlelength=2.5)
 
-    # --- Accent line (full width, at top) ---
+    # --- Accent line (short bar, top-left, aligned with y-axis/title) ---
     x_left = ax_left
-    x_right = ax_left + ax_width
+    accent_x_right = x_left + ACCENT_LINE_LENGTH / (fig_w_in * DPI)
     accent_y = 1 - pad_top / fig_h_in
     fig.add_artist(MplLine2D(
-        [x_left, x_right], [accent_y, accent_y],
+        [x_left, accent_x_right], [accent_y, accent_y],
         transform=fig.transFigure, color=FT_FONT_COLOR,
         linewidth=ACCENT_LINE_WIDTH, clip_on=False, solid_capstyle="butt",
     ))
 
-    # --- Title (bold, left-aligned) ---
+    # --- Title (bold, left-aligned, font_size + 6 = 20px) ---
     text_y = accent_y - accent_gap / fig_h_in
     if title_main:
         fig.text(x_left, text_y, title_main,
-                 fontsize=font_size + 4, fontweight="bold",
+                 fontsize=font_size + 6, fontweight="bold",
                  color=FT_FONT_COLOR, va="top", ha="left",
                  fontfamily=font_family)
         text_y -= title_h / fig_h_in
 
-    # --- Subtitle (lighter, left-aligned) ---
+    # --- Subtitle (lighter, left-aligned, font_size + 2 = 16px) ---
     if title_sub:
         fig.text(x_left, text_y, title_sub,
-                 fontsize=font_size, color=FT_FONT_COLOR,
+                 fontsize=font_size + 2, color=FT_FONT_COLOR,
                  va="top", ha="left", fontfamily=font_family)
 
     # --- Source (bottom-left) ---
@@ -592,13 +593,13 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             )
 
     # --- Layout margins ---
-    top_margin = 30  # base
+    top_margin = 20  # base
     if title_main:
-        top_margin += 35
+        top_margin += 30
     if title_sub:
-        top_margin += 25
-    top_margin += 35  # legend + range selector space
-    top_margin += 10  # accent line + padding
+        top_margin += 22
+    top_margin += 30  # legend + range selector space
+    top_margin += 8   # accent line + padding
 
     bottom_margin = 40
     if source_text:
@@ -619,7 +620,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             bgcolor="rgba(255,255,255,0.8)",
             activecolor=LEFT_COLOR,
             x=0, y=1.0, xanchor="left", yanchor="bottom",
-            font=dict(size=font_size - 2),
+            font=dict(size=font_size),
         ),
         rangeslider=dict(visible=False),
     )
@@ -644,20 +645,20 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     if not is_dual:
         layout_kwargs["template"] = "pxts"
 
-    # --- Title ---
+    # --- Title (font_size + 6 = 20px) / Subtitle (font_size + 2 = 16px) ---
     if title_main or title_sub:
         parts = []
         if title_main:
             parts.append(f"<b>{title_main}</b>")
         if title_sub:
-            sub_size = font_size
+            sub_size = font_size + 2
             parts.append(
                 f"<span style='font-size:{sub_size}px; font-weight:normal'>{title_sub}</span>"
             )
         layout_kwargs["title"] = dict(
             text="<br>".join(parts),
             x=0, xanchor="left",
-            font=dict(color=FT_FONT_COLOR, size=font_size + 4, family=font_family),
+            font=dict(color=FT_FONT_COLOR, size=font_size + 6, family=font_family),
         )
 
     fig.update_layout(**layout_kwargs)
@@ -670,11 +671,12 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             color=FT_FONT_COLOR,
         ))
 
-    # --- Accent line at top of figure ---
+    # --- Accent line (short bar, top-left) ---
     accent_y = 1 + (top_margin - 5) / chart_h_px
+    accent_x1 = ACCENT_LINE_LENGTH / chart_w_px  # 40px as fraction of chart width
     fig.add_shape(
         type="line",
-        x0=0, x1=1, y0=accent_y, y1=accent_y,
+        x0=0, x1=accent_x1, y0=accent_y, y1=accent_y,
         xref="paper", yref="paper",
         line=dict(color=FT_FONT_COLOR, width=ACCENT_LINE_WIDTH),
     )

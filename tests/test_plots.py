@@ -242,12 +242,12 @@ class TestAnnotations:
 
 class TestDimension:
     def test_dimension_mpl_default(self, ts_df):
-        """Default dimension: chart area is 1000/100=10in wide, height=1000/1.618/100."""
+        """Default dimension: chart area is 600/100=6in wide, height=600/1.5/100."""
         fig = tsplot(ts_df, backend="matplotlib")
         w, h = fig.get_size_inches()
-        assert w == pytest.approx(10.0)
+        assert w == pytest.approx(6.0)
         # Total height = chart_h + top_space + bottom_space (> chart_h)
-        assert h > 1000 / 1.618 / 100
+        assert h > 600 / 1.5 / 100
         plt.close(fig)
 
     def test_dimension_mpl_custom(self, ts_df):

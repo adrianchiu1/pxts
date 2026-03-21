@@ -13,20 +13,32 @@ Blue leads per finance convention (Bloomberg/TradingView primary series color).
 # Color palette constants
 # ---------------------------------------------------------------------------
 
-# Primary "pxts branded" colors: Finance-themed Okabe-Ito adaptation.
-# Blue (#0072B2) leads per finance convention (Bloomberg/TradingView primary series).
-# All 8 colors are distinguishable for deuteranopia and protanopia (red-green weakness).
+# FT data visualization palette (default).
+# Source: FT Visual Vocabulary / o-colors.
+FT_COLORS: list = [
+    "#0F5499",  # Oxford (dark blue) — primary series
+    "#EB5E8D",  # Candy (pink)
+    "#00A0AF",  # Teal
+    "#FF764D",  # Mandarin (orange)
+    "#990F3D",  # Claret (dark red)
+    "#96CC28",  # Wasabi (green)
+]
+
+# Okabe-Ito colorblind-safe palette (alternative).
 # Source: Wong (2011) Nature Methods 8(6):441, doi:10.1038/nmeth.1618
-pxts_COLORS: list = [
-    "#0072B2",  # Blue — primary series, matches finance convention
-    "#D55E00",  # Vermillion (distinguishable from green for red-green weakness)
+# All 7 colors are distinguishable for deuteranopia and protanopia.
+OKABE_ITO_COLORS: list = [
+    "#0072B2",  # Blue
+    "#D55E00",  # Vermillion
     "#56B4E9",  # Sky Blue
     "#009E73",  # Bluish Green
     "#E69F00",  # Orange
     "#CC79A7",  # Reddish Purple
-    #"#F0E442",  # Yellow (use last — low contrast on white background)
     "#000000",  # Black
 ]
+
+# Default palette — FT style.
+pxts_COLORS: list = list(FT_COLORS)
 
 # Fallback: plotly's built-in qualitative.Safe palette (24 colors, colorblind-friendly).
 # Used when series count exceeds len(pxts_COLORS).
@@ -47,13 +59,16 @@ DARK_PLOT_COLOR: str = "#16213e"          # Slightly lighter navy for plot area
 DARK_GRID_COLOR: str = "#2d2d5a"          # Muted purple-navy grid
 DARK_FONT_COLOR: str = "#e0e0e0"          # Light gray text for readability
 
-# Font
-DEFAULT_FONT_SIZE: int = 12
-FONT_FAMILY: str = "Arial, sans-serif"
+# Font — Helvetica Neue closest to FT's MetricWeb; degrades gracefully.
+DEFAULT_FONT_SIZE: int = 14
+FONT_FAMILY: str = "Helvetica Neue, Helvetica, Arial, sans-serif"
 
-# Chart dimension defaults
-DEFAULT_CHART_WIDTH: int = 1000
-DEFAULT_ASPECT_RATIO: float = 1.618
+# Chart dimension defaults (FT-style: 600px wide, 1.5 aspect ratio)
+DEFAULT_CHART_WIDTH: int = 600
+DEFAULT_ASPECT_RATIO: float = 1.5
+
+# Accent line: short bar at top-left (pixels)
+ACCENT_LINE_LENGTH: int = 40
 
 
 # ---------------------------------------------------------------------------
