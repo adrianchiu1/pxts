@@ -9,7 +9,7 @@ Column selection is done via yaxis["cols"] and yaxis2["cols"].
 If yaxis2 is provided, the chart becomes dual-axis.
 If neither yaxis nor yaxis2 specifies cols, all df columns are plotted.
 
-Layout (top to bottom): accent line, title, subtitle, legend, [range selector],
+Layout (top to bottom): accent line, title, subtitle, legend,
 chart area, source. FT-inspired styling: no spines, horizontal gridlines only.
 """
 
@@ -37,15 +37,6 @@ from pxts.theme import (
 
 LEFT_COLOR: str = pxts_COLORS[0]   # '#0072B2' Blue
 RIGHT_COLOR: str = pxts_COLORS[1]  # '#D55E00' Vermillion
-
-_RANGE_SELECTOR_BUTTONS = [
-    dict(count=1, label="1M", step="month", stepmode="backward"),
-    dict(count=6, label="6M", step="month", stepmode="backward"),
-    dict(count=1, label="YTD", step="year", stepmode="todate"),
-    dict(count=1, label="1Y", step="year", stepmode="backward"),
-    dict(count=5, label="5Y", step="year", stepmode="backward"),
-    dict(step="all", label="All"),
-]
 
 
 # ---------------------------------------------------------------------------
@@ -595,7 +586,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             )
 
     # --- Layout margins (pixel-precise, top to bottom) ---
-    # 3px top pad | accent line | 5px gap | title | subtitle | 5px gap | legend | range sel
+    # 3px top pad | accent line | 5px gap | title | subtitle | 5px gap | legend
     top_margin = 3                          # top edge to accent line
     top_margin += 30                         # accent line to title
     if title_main:
@@ -604,7 +595,6 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
         top_margin += 20                    # subtitle text height
     top_margin += 5                         # subtitle/title to legend
     top_margin += 22                        # legend row
-    top_margin += 24                        # range selector row + gap to chart
 
     bottom_margin = 40
     if source_text:
@@ -616,19 +606,10 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     total_w = chart_w_px + left_margin + right_margin
     total_h = int(chart_h_px) + top_margin + bottom_margin
 
-    # --- X-axis config with range selector ---
-    # Range selector sits just above chart (y=1.0), legend sits above that (y=1.07)
+    # --- X-axis config ---
     xaxis_cfg = dict(
         type="date",
         showgrid=False,
-        rangeselector=dict(
-            buttons=_RANGE_SELECTOR_BUTTONS,
-            bgcolor="rgba(255,255,255,0.8)",
-            activecolor=LEFT_COLOR,
-            x=0, y=0.98, xanchor="left", yanchor="bottom",
-            font=dict(size=font_size - 1),
-        ),
-        rangeslider=dict(visible=False),
     )
 
     # --- Build layout ---
@@ -768,7 +749,7 @@ def tsplot(df, *,
     provided (dict with required "cols" key), the chart becomes dual-axis.
 
     Layout (top to bottom): accent line, title, subtitle, legend,
-    [range selector buttons — plotly only], chart area, source.
+    chart area, source.
 
     Args:
         df: pandas DataFrame with a DatetimeIndex.

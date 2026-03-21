@@ -349,29 +349,6 @@ class TestAccentLine:
         assert len(accent_shapes) >= 1
 
 
-# ---------------------------------------------------------------------------
-# Range selector (plotly)
-# ---------------------------------------------------------------------------
-
-class TestRangeSelector:
-    def test_six_range_buttons(self, ts_df):
-        fig = tsplot(ts_df, backend="plotly")
-        rs = fig.layout.xaxis.rangeselector
-        assert rs is not None
-        assert len(rs.buttons) == 6
-
-    def test_range_button_labels(self, ts_df):
-        fig = tsplot(ts_df, backend="plotly")
-        labels = [b.label for b in fig.layout.xaxis.rangeselector.buttons]
-        for lbl in ["1M", "6M", "YTD", "1Y", "5Y", "All"]:
-            assert lbl in labels
-
-    def test_dual_has_range_buttons(self, ts_df):
-        fig = tsplot(ts_df, yaxis={"cols": ["A"]}, yaxis2={"cols": ["B"]}, backend="plotly")
-        rs = fig.layout.xaxis.rangeselector
-        assert rs is not None
-        assert len(rs.buttons) == 6
-
 
 # ---------------------------------------------------------------------------
 # Axis ranges
