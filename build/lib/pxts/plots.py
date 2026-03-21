@@ -117,17 +117,19 @@ def _validate_axis_limit(value, name: str, is_date: bool = False) -> None:
 
 
 def _validate_plot_params(
-    hlines, vlines, title, caller: str,
+    hlines, vlines, title, subtitle, date_format, caller: str,
     ylim=None, xlim=None, ylim_lhs=None, ylim_rhs=None,
+    annotations=None,
 ) -> None:
     """Validate parameter types for tsplot and tsplot_dual.
 
     hlines/vlines accept list, dict, or None (dict is used for labeled reference lines).
     Scalar int/float values are normalized upstream by _normalize_lines before reaching
     this function, so they will already be wrapped in a list when validated here.
-    title accepts str or None.
+    title, subtitle, date_format accept str or None.
     ylim, ylim_lhs, ylim_rhs: list or tuple of 2 numeric values, or None.
     xlim: list or tuple of 2 date-like values, or None.
+    annotations: list of dicts with "x" and "text" keys, or None.
 
     Raises ValueError with a clear message naming the parameter and expected type.
     """
@@ -143,16 +145,63 @@ def _validate_plot_params(
         raise ValueError(
             f"{caller}: title must be str or None, got {type(title).__name__}"
         )
+    if not isinstance(subtitle, (str, type(None))):
+        raise ValueError(
+            f"{caller}: subtitle must be str or None, got {type(subtitle).__name__}"
+        )
+    if not isinstance(date_format, (str, type(None))):
+        raise ValueError(
+            f"{caller}: date_format must be str or None, got {type(date_format).__name__}"
+        )
+    if annotations is not None:
+        if not isinstance(annotations, list):
+            raise ValueError(
+                f"{caller}: annotations must be list or None, got {type(annotations).__name__}"
+            )
+        for i, ann in enumerate(annotations):
+            if not isinstance(ann, dict):
+                raise ValueError(
+                    f"{caller}: annotations[{i}] must be a dict, got {type(ann).__name__}"
+                )
+            if "x" not in ann:
+                raise ValueError(
+                    f"{caller}: annotations[{i}] missing required key 'x'"
+                )
+            if "text" not in ann:
+                raise ValueError(
+                    f"{caller}: annotations[{i}] missing required key 'text'"
+                )
     _validate_axis_limit(ylim, "ylim")
     _validate_axis_limit(xlim, "xlim", is_date=True)
     _validate_axis_limit(ylim_lhs, "ylim_lhs")
     _validate_axis_limit(ylim_rhs, "ylim_rhs")
 
 
+
 def _sorted_cols_by_last_value(df, cols) -> list:
     """Return cols sorted by their last value in df (descending)."""
     last_vals = {c: df[c].iloc[-1] for c in cols}
     return sorted(cols, key=lambda c: last_vals[c], reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# Plotly date axis — zoom-responsive tick format stops
+# ---------------------------------------------------------------------------
+
+# Plotly dtickrange values are in milliseconds.
+# Each entry: [lower_bound_ms, upper_bound_ms] for when that format applies.
+# None means "no bound" (open-ended).
+# Tiers ordered most-zoomed-out to most-zoomed-in (Plotly requires this order).
+_PLOTLY_TICKFORMATSTOPS = [
+    # Decade+ view: show year only
+    dict(dtickrange=[None, 1000 * 60 * 60 * 24 * 365 * 2], value="%Y"),
+    # Year view: show month + year
+    dict(dtickrange=[1000 * 60 * 60 * 24 * 28, 1000 * 60 * 60 * 24 * 365 * 2], value="%b %Y"),
+    # Month view: show month + day
+    dict(dtickrange=[1000 * 60 * 60 * 24, 1000 * 60 * 60 * 24 * 28], value="%b %d"),
+    # Day/sub-day view: show day only
+    dict(dtickrange=[None, 1000 * 60 * 60 * 24], value="%d"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -284,8 +333,8 @@ def _add_mpl_end_labels(ax, df, cols, lines) -> None:
         _manual_deconflict(texts)
 
 
-def _plot_ts_mpl(df, cols, title, labels, hlines, vlines,
-                 ylim=None, xlim=None, **kwargs):
+def _plot_ts_mpl(df, cols, title, subtitle, labels, hlines, vlines,
+                 date_format, ylim=None, xlim=None, **kwargs):
     """matplotlib implementation of plot_ts."""
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
@@ -300,15 +349,25 @@ def _plot_ts_mpl(df, cols, title, labels, hlines, vlines,
     # Date axis
     locator = mdates.AutoDateLocator()
     ax.xaxis.set_major_locator(locator)
-    formatter = mdates.ConciseDateFormatter(locator)
-    ax.xaxis.set_major_formatter(formatter)
+    if date_format:
+        ax.xaxis.set_major_formatter(mdates.DateFormatter(date_format))
+    else:
+        formatter = mdates.ConciseDateFormatter(locator)
+        ax.xaxis.set_major_formatter(formatter)
 
     # Sorted legend
     _apply_sorted_legend_mpl(ax, df, cols)
 
-    # Title
+    # Title and subtitle
     if title:
         fig.suptitle(title, fontsize=DEFAULT_FONT_SIZE + 1)
+    if subtitle:
+        ax.text(
+            0, 1.02, subtitle,
+            transform=ax.transAxes,
+            fontsize=DEFAULT_FONT_SIZE - 2,
+            va="bottom",
+        )
 
     # Reference lines (BEFORE end labels — labels go LAST per Pitfall 3)
     if hlines:
@@ -328,152 +387,6 @@ def _plot_ts_mpl(df, cols, title, labels, hlines, vlines,
         ax.set_xlim(pd.Timestamp(xlim[0]), pd.Timestamp(xlim[1]))
 
     return fig
-
-
-def _plot_ts_dual_mpl(df, left, right, title, labels, hlines, vlines,
-                      ylim_lhs=None, ylim_rhs=None, xlim=None, **kwargs):
-    """matplotlib implementation of plot_ts_dual."""
-    import matplotlib.pyplot as plt
-    import matplotlib.dates as mdates
-    import matplotlib.colors as mcolors
-
-    fig, ax1 = plt.subplots()
-    ax2 = ax1.twinx()
-    ax2.grid(False)  # Pitfall 2: avoid double-gridlines on right axis
-
-    # Plot left series on ax1
-    left_lines = []
-    for col in left:
-        (line,) = ax1.plot(df.index, df[col], label=col, color=LEFT_COLOR, **kwargs)
-        left_lines.append(line)
-
-    # Plot right series on ax2 with RIGHT_COLOR
-    right_lines = []
-    for col in right:
-        (line,) = ax2.plot(df.index, df[col], label=col, color=RIGHT_COLOR, **kwargs)
-        right_lines.append(line)
-
-    # Color left axis
-    ax1.spines["left"].set_edgecolor(LEFT_COLOR)
-    ax1.tick_params(axis="y", labelcolor=LEFT_COLOR)
-
-    # Color right axis
-    ax2.spines["right"].set_edgecolor(RIGHT_COLOR)
-    ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR)
-
-    # Date axis on ax1
-    locator = mdates.AutoDateLocator()
-    ax1.xaxis.set_major_locator(locator)
-    ax1.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
-
-    # Combined sorted legend from both axes
-    all_lines = left_lines + right_lines
-    all_cols = left + right
-    combined_handles = {l.get_label(): l for l in all_lines}
-    last_vals = {c: df[c].iloc[-1] for c in all_cols}
-    sorted_labels = sorted(all_cols, key=lambda c: last_vals[c], reverse=True)
-    handles = [combined_handles[c] for c in sorted_labels if c in combined_handles]
-    ax1.legend(handles, sorted_labels)
-
-    # Title
-    if title:
-        fig.suptitle(title, fontsize=DEFAULT_FONT_SIZE + 1)
-
-    if hlines:
-        _draw_hlines_mpl(ax1, hlines)
-    if vlines:
-        _draw_vlines_mpl(ax1, vlines)
-
-    if labels:
-        _add_mpl_end_labels(ax1, df, left, left_lines)
-        _add_mpl_end_labels(ax2, df, right, right_lines)
-
-    fig.tight_layout()
-
-    if ylim_lhs is not None:
-        ax1.set_ylim(ylim_lhs[0], ylim_lhs[1])
-    if ylim_rhs is not None:
-        ax2.set_ylim(ylim_rhs[0], ylim_rhs[1])
-    if xlim is not None:
-        ax1.set_xlim(pd.Timestamp(xlim[0]), pd.Timestamp(xlim[1]))
-
-    return fig
-
-
-# ---------------------------------------------------------------------------
-# Plotly helpers
-# ---------------------------------------------------------------------------
-
-def plot_time_series(
-    df,
-    cols,
-    
-    title="Time Series Plot",
-
-    height=600,
-    width=1000,
-    font=None,
-    xaxis=None,
-    yaxis=None,
-):
-    """
-    Single-axis time series chart. Each column in df becomes a separate trace.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame with a datetime index. Each column is plotted as a trace.
-    title : str
-        Chart title.
-    height, width : int
-        Figure dimensions in pixels.
-    font : dict, optional
-        Plotly font dict, e.g. ``{"size": 16, "family": "Arial"}``.
-    xaxis : dict, optional
-        X-axis overrides. Accepts all Plotly xaxis keys plus ``"range"``
-        as a list/tuple ``[min, max]``.
-    yaxis : dict, optional
-        Y-axis overrides. Accepts ``"range"`` as a list/tuple ``[min, max]``.
-
-    Returns
-    -------
-    go.Figure
-    """
-    COLORS = ["red", "blue", "green", "orange", "purple", "teal"]
-
-    def _apply_range(axis_kwargs, user_dict):
-        if not user_dict:
-            return axis_kwargs
-        merged = {**axis_kwargs, **user_dict}
-        rng = merged.get("range")
-        if rng is not None and not isinstance(rng, (list, tuple)):
-            raise TypeError(f"'range' must be a list or tuple, got {type(rng)}")
-        if isinstance(rng, tuple):
-            merged["range"] = list(rng)
-        return merged
-
-    traces = [
-        go.Scatter(
-            x=df.index,
-            y=df[col],
-            line=dict(color=COLORS[i % len(COLORS)], width=0.8),
-            opacity=0.8,
-            name=str(col),
-            text=[f"{col}: {v}" for v in df[col]],
-        )
-        for i, col in enumerate(df.columns)
-    ]
-
-    layout = go.Layout(
-        title=title,
-        height=height,
-        width=width,
-        font=font or {"size": 16},
-        xaxis=_apply_range({"title": "Date", "type": "date"}, xaxis),
-        yaxis=_apply_range({}, yaxis),
-    )
-
-    return go.Figure(data=traces, layout=layout)
 
 
 def _add_plotly_year_annotation(fig, df) -> None:
@@ -539,8 +452,9 @@ def _extend_yaxis_for_legend(fig, df, cols, ylim) -> None:
         fig.update_layout(yaxis=dict(range=[y_min, new_y_max]))
 
 
-def _plot_ts_plotly(df, cols, title, labels, hlines, vlines,
-                    date_format, ylim=None, xlim=None, **kwargs):
+def _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
+                    date_format, ylim=None, xlim=None,
+                    annotations=None, rangeslider=True, theme="light", **kwargs):
     """plotly implementation of plot_ts."""
     import plotly.graph_objects as go
 
@@ -551,7 +465,7 @@ def _plot_ts_plotly(df, cols, title, labels, hlines, vlines,
     else:
         xaxis_cfg = dict(type="date", tickformatstops=_PLOTLY_TICKFORMATSTOPS)
 
-    # Range selector buttons (rangeslider always hidden)
+    # Range selector buttons and rangeslider
     xaxis_cfg["rangeselector"] = dict(
         buttons=list([
             dict(count=1,  label="1M",  step="month", stepmode="backward"),
@@ -565,7 +479,7 @@ def _plot_ts_plotly(df, cols, title, labels, hlines, vlines,
         activecolor="#0072B2",
         x=0, y=1.02, xanchor="left", yanchor="bottom",
     )
-    xaxis_cfg["rangeslider"] = dict(visible=False)
+    xaxis_cfg["rangeslider"] = dict(visible=rangeslider)
 
     fig = go.Figure()
 
@@ -587,14 +501,38 @@ def _plot_ts_plotly(df, cols, title, labels, hlines, vlines,
         layout_kwargs["title_text"] = title
     fig.update_layout(**layout_kwargs)
 
+    # Apply dark theme after layout update
+    if theme == "dark":
+        from pxts.theme import (DARK_BACKGROUND_COLOR, DARK_PLOT_COLOR,
+                                 DARK_GRID_COLOR, DARK_FONT_COLOR)
+        fig.update_layout(paper_bgcolor=DARK_BACKGROUND_COLOR,
+                          plot_bgcolor=DARK_PLOT_COLOR,
+                          font=dict(color=DARK_FONT_COLOR))
+        fig.update_xaxes(gridcolor=DARK_GRID_COLOR)
+        fig.update_yaxes(gridcolor=DARK_GRID_COLOR)
+
     # Year annotation (ConciseDateFormatter offset equivalent): only when auto-formatting
     if not date_format:
         _add_plotly_year_annotation(fig, df)
+
+    if subtitle:
+        fig.add_annotation(
+            text=subtitle,
+            xref="paper",
+            yref="paper",
+            x=0,
+            y=1.06,
+            showarrow=False,
+            font=dict(size=DEFAULT_FONT_SIZE - 2),
+        )
 
     if hlines:
         _draw_hlines_plotly(fig, hlines)
     if vlines:
         _draw_vlines_plotly(fig, vlines)
+
+    if annotations:
+        _apply_plotly_annotations(fig, annotations, df, cols)
 
     if ylim is not None:
         fig.update_layout(yaxis=dict(range=list(ylim)))
@@ -652,14 +590,196 @@ def _draw_vlines_plotly(fig, vlines, secondary_y: bool = False) -> None:
             )
 
 
+def _apply_plotly_annotations(fig, annotations, df, cols, secondary_y_cols=None) -> None:
+    """Add data-point annotations to a Plotly figure.
+
+    Each annotation dict must have "x" and "text" keys. "y" is optional — if absent,
+    y is auto-looked up from the nearest row to x in df[col]. "col" is optional for
+    single-axis charts but required for dual-axis charts (secondary_y_cols provided).
+
+    Args:
+        fig: Plotly figure to annotate.
+        annotations: list of dicts with keys "x", "text", optionally "y" and "col".
+        df: DataFrame used for y auto-lookup (must have DatetimeIndex).
+        cols: list of column names available for y lookup.
+        secondary_y_cols: if not None, list of column names on secondary y-axis;
+            used to set yref="y2" for those annotations.
+    """
+    if not annotations:
+        return
+    for ann in annotations:
+        x_val = ann["x"]
+        text = ann["text"]
+        x_ts = pd.Timestamp(x_val)
+
+        # Determine which column to use for y-lookup
+        col = ann.get("col", None)
+        if col is None:
+            col = cols[0]  # default to first column for single-axis charts
+
+        # y auto-lookup: find nearest row index to x_ts
+        if "y" in ann:
+            y_val = ann["y"]
+        else:
+            # Find index of nearest timestamp
+            if col in df.columns:
+                idx = (df.index - x_ts).to_pytimedelta()
+                idx = [abs(d) for d in idx]
+                nearest_pos = idx.index(min(idx))
+                y_val = df[col].iloc[nearest_pos]
+            else:
+                y_val = 0
+
+        # Determine yref based on whether col is on secondary axis
+        if secondary_y_cols and col in secondary_y_cols:
+            yref = "y2"
+        else:
+            yref = "y"
+
+        fig.add_annotation(
+            x=str(x_ts),
+            xref="x",
+            y=y_val,
+            yref=yref,
+            text=str(text),
+            showarrow=False,
+            font=dict(size=DEFAULT_FONT_SIZE - 1),
+            yanchor="bottom",
+            bgcolor="rgba(255,255,255,0.7)",
+        )
+
+
+def add_annotation(fig, x, y=None, text: str = '', col: str = None) -> None:
+    """Add a single annotation to an existing Plotly figure.
+
+    Standalone helper for post-call annotation. Useful when you want to annotate
+    a figure returned by tsplot() or tsplot_dual() without rebuilding it.
+
+    Args:
+        fig: plotly.graph_objects.Figure to annotate.
+        x: x-position as a date-like value (str, pd.Timestamp, datetime).
+        y: y-position. If None, the annotation is placed at y=0.5 with yref="paper"
+           (you should provide y for accurate positioning).
+        text: annotation label text. Defaults to '' if not provided.
+        col: column name hint — not used for positioning here (caller is responsible
+           for passing the correct y value), but included for API symmetry with
+           the annotations= dict format.
+
+    Returns:
+        None. Modifies fig in place.
+    """
+    x_str = str(pd.Timestamp(x))
+    if y is None:
+        yref = "paper"
+        y_val = 0.5
+    else:
+        yref = "y"
+        y_val = y
+
+    fig.add_annotation(
+        x=x_str,
+        xref="x",
+        y=y_val,
+        yref=yref,
+        text=str(text),
+        showarrow=False,
+        font=dict(size=DEFAULT_FONT_SIZE - 1),
+        yanchor="bottom",
+        bgcolor="rgba(255,255,255,0.7)",
+    )
+
+
+# ---------------------------------------------------------------------------
+# matplotlib dual-axis helpers
+# ---------------------------------------------------------------------------
+
+def _plot_ts_dual_mpl(df, left, right, title, subtitle, labels, hlines, vlines,
+                      date_format, ylim_lhs=None, ylim_rhs=None, xlim=None, **kwargs):
+    """matplotlib implementation of plot_ts_dual."""
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    import matplotlib.colors as mcolors
+
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    ax2.grid(False)  # Pitfall 2: avoid double-gridlines on right axis
+
+    # Plot left series on ax1
+    left_lines = []
+    for col in left:
+        (line,) = ax1.plot(df.index, df[col], label=col, color=LEFT_COLOR, **kwargs)
+        left_lines.append(line)
+
+    # Plot right series on ax2 with RIGHT_COLOR
+    right_lines = []
+    for col in right:
+        (line,) = ax2.plot(df.index, df[col], label=col, color=RIGHT_COLOR, **kwargs)
+        right_lines.append(line)
+
+    # Color left axis
+    ax1.spines["left"].set_edgecolor(LEFT_COLOR)
+    ax1.tick_params(axis="y", labelcolor=LEFT_COLOR)
+
+    # Color right axis
+    ax2.spines["right"].set_edgecolor(RIGHT_COLOR)
+    ax2.tick_params(axis="y", labelcolor=RIGHT_COLOR)
+
+    # Date axis on ax1
+    locator = mdates.AutoDateLocator()
+    ax1.xaxis.set_major_locator(locator)
+    if date_format:
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter(date_format))
+    else:
+        ax1.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+
+    # Combined sorted legend from both axes
+    all_lines = left_lines + right_lines
+    all_cols = left + right
+    combined_handles = {l.get_label(): l for l in all_lines}
+    last_vals = {c: df[c].iloc[-1] for c in all_cols}
+    sorted_labels = sorted(all_cols, key=lambda c: last_vals[c], reverse=True)
+    handles = [combined_handles[c] for c in sorted_labels if c in combined_handles]
+    ax1.legend(handles, sorted_labels)
+
+    # Title and subtitle
+    if title:
+        fig.suptitle(title, fontsize=DEFAULT_FONT_SIZE + 1)
+    if subtitle:
+        ax1.text(
+            0, 1.02, subtitle,
+            transform=ax1.transAxes,
+            fontsize=DEFAULT_FONT_SIZE - 2,
+            va="bottom",
+        )
+
+    if hlines:
+        _draw_hlines_mpl(ax1, hlines)
+    if vlines:
+        _draw_vlines_mpl(ax1, vlines)
+
+    if labels:
+        _add_mpl_end_labels(ax1, df, left, left_lines)
+        _add_mpl_end_labels(ax2, df, right, right_lines)
+
+    fig.tight_layout()
+
+    if ylim_lhs is not None:
+        ax1.set_ylim(ylim_lhs[0], ylim_lhs[1])
+    if ylim_rhs is not None:
+        ax2.set_ylim(ylim_rhs[0], ylim_rhs[1])
+    if xlim is not None:
+        ax1.set_xlim(pd.Timestamp(xlim[0]), pd.Timestamp(xlim[1]))
+
+    return fig
 
 
 # ---------------------------------------------------------------------------
 # plotly dual-axis helpers
 # ---------------------------------------------------------------------------
 
-def _plot_ts_dual_plotly(df, left, right, title, labels, hlines, vlines,
+def _plot_ts_dual_plotly(df, left, right, title, subtitle, labels, hlines, vlines,
                          date_format, ylim_lhs=None, ylim_rhs=None, xlim=None,
+                         annotations=None, rangeslider=True, theme="light",
                          left_label=None, right_label=None, **kwargs):
     """plotly implementation of plot_ts_dual."""
     import plotly.graph_objects as go
@@ -718,7 +838,7 @@ def _plot_ts_dual_plotly(df, left, right, title, labels, hlines, vlines,
     else:
         fig.update_xaxes(type="date", tickformatstops=_PLOTLY_TICKFORMATSTOPS)
 
-    # Range selector buttons (rangeslider always hidden)
+    # Range selector buttons and rangeslider
     rangeselector_cfg = dict(
         buttons=list([
             dict(count=1,  label="1M",  step="month", stepmode="backward"),
@@ -732,18 +852,43 @@ def _plot_ts_dual_plotly(df, left, right, title, labels, hlines, vlines,
         activecolor="#0072B2",
         x=0, y=1.02, xanchor="left", yanchor="bottom",
     )
-    fig.update_xaxes(rangeselector=rangeselector_cfg, rangeslider=dict(visible=False))
+    fig.update_xaxes(rangeselector=rangeselector_cfg,
+                     rangeslider=dict(visible=rangeslider))
 
     if not date_format:
         _add_plotly_year_annotation(fig, df)
 
     if title:
         fig.update_layout(title_text=title)
+    if subtitle:
+        fig.add_annotation(
+            text=subtitle,
+            xref="paper",
+            yref="paper",
+            x=0,
+            y=1.06,
+            showarrow=False,
+            font=dict(size=DEFAULT_FONT_SIZE - 2),
+        )
+
+    # Apply dark theme
+    if theme == "dark":
+        from pxts.theme import (DARK_BACKGROUND_COLOR, DARK_PLOT_COLOR,
+                                 DARK_GRID_COLOR, DARK_FONT_COLOR)
+        fig.update_layout(paper_bgcolor=DARK_BACKGROUND_COLOR,
+                          plot_bgcolor=DARK_PLOT_COLOR,
+                          font=dict(color=DARK_FONT_COLOR))
+        fig.update_xaxes(gridcolor=DARK_GRID_COLOR)
+        fig.update_yaxes(gridcolor=DARK_GRID_COLOR)
 
     if hlines:
         _draw_hlines_plotly(fig, hlines)
     if vlines:
         _draw_vlines_plotly(fig, vlines)
+
+    if annotations:
+        _apply_plotly_annotations(fig, annotations, df, left + right,
+                                   secondary_y_cols=right)
 
     if ylim_lhs is not None:
         fig.update_layout(yaxis=dict(range=list(ylim_lhs)))
@@ -759,9 +904,10 @@ def _plot_ts_dual_plotly(df, left, right, title, labels, hlines, vlines,
 # Public API
 # ---------------------------------------------------------------------------
 
-def tsplot(df, cols=None, title: str = "",
+def tsplot(df, cols=None, title: str = "", subtitle: str = "",
            labels: bool = False, hlines=None, vlines=None,
            date_format=None, ylim=None, xlim=None,
+           annotations=None, rangeslider: bool = True, theme: str = "light",
            backend=None, **kwargs):
     """Plot one or more time series columns from a DataFrame as line charts.
 
@@ -769,13 +915,18 @@ def tsplot(df, cols=None, title: str = "",
         df: pandas DataFrame with a DatetimeIndex.
         cols: list of column names to plot. Defaults to all columns.
         title: figure title (suptitle for matplotlib, title_text for plotly).
+        subtitle: smaller subtitle below the title.
         labels: if True, annotate the end of each line with the column name.
             matplotlib: text annotations; plotly: hover only (no text traces).
         hlines: horizontal reference lines. List[float] or Dict[str, float].
         vlines: vertical reference lines. List[timestamp] or Dict[str, timestamp].
-        date_format: custom date format string (overrides auto-detection). Plotly backend only.
+        date_format: custom date format string (overrides auto-detection).
         ylim: y-axis limits as [lo, hi] or (lo, hi), or None for default.
         xlim: x-axis limits as [date1, date2] (date-like), or None for default.
+        annotations: list of dicts with keys "x" (date) and "text" (str).
+            y auto-looked up from nearest data point. Plotly backend only; ignored on matplotlib.
+        rangeslider: show rangeslider below chart. Default True. Plotly backend only.
+        theme: "light" (default, white background) or "dark" (dark navy). Plotly backend only.
         backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
         **kwargs: forwarded to the underlying plot call (e.g., linewidth, alpha).
 
@@ -790,8 +941,8 @@ def tsplot(df, cols=None, title: str = "",
     validate_ts(df)
     hlines = _normalize_lines(hlines, "hlines")
     vlines = _normalize_lines(vlines, "vlines")
-    _validate_plot_params(hlines, vlines, title, caller="tsplot",
-                          ylim=ylim, xlim=xlim)
+    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot",
+                          ylim=ylim, xlim=xlim, annotations=annotations)
     if cols is None:
         cols = list(df.columns)
     _validate_cols(df, cols)
@@ -800,16 +951,19 @@ def tsplot(df, cols=None, title: str = "",
         backend = get_backend()
 
     if backend == "matplotlib":
-        return _plot_ts_mpl(df, cols, title, labels, hlines, vlines,
-                            ylim=ylim, xlim=xlim, **kwargs)
+        return _plot_ts_mpl(df, cols, title, subtitle, labels, hlines, vlines,
+                            date_format, ylim=ylim, xlim=xlim, **kwargs)
     else:
-        return _plot_ts_plotly(df, cols, title, labels, hlines, vlines,
-                               date_format, ylim=ylim, xlim=xlim, **kwargs)
+        return _plot_ts_plotly(df, cols, title, subtitle, labels, hlines, vlines,
+                               date_format, ylim=ylim, xlim=xlim,
+                               annotations=annotations, rangeslider=rangeslider,
+                               theme=theme, **kwargs)
 
 
-def tsplot_dual(df, left, right, title: str = "",
+def tsplot_dual(df, left, right, title: str = "", subtitle: str = "",
                 labels: bool = False, hlines=None, vlines=None,
                 date_format=None, ylim_lhs=None, ylim_rhs=None, xlim=None,
+                annotations=None, rangeslider: bool = True, theme: str = "light",
                 left_label: str = None, right_label: str = None,
                 backend=None, **kwargs):
     """Plot time series with two y-axes (left and right).
@@ -819,13 +973,18 @@ def tsplot_dual(df, left, right, title: str = "",
         left: list of column names to plot on the left (primary) y-axis.
         right: list of column names to plot on the right (secondary) y-axis.
         title: figure title.
+        subtitle: smaller subtitle below the title.
         labels: if True, annotate the end of each line with the column name.
         hlines: horizontal reference lines. List[float] or Dict[str, float].
         vlines: vertical reference lines. List[timestamp] or Dict[str, timestamp].
-        date_format: custom date format string. Plotly backend only.
+        date_format: custom date format string.
         ylim_lhs: y-axis limits for the left (primary) axis as [lo, hi], or None.
         ylim_rhs: y-axis limits for the right (secondary) axis as [lo, hi], or None.
         xlim: x-axis limits as [date1, date2] (date-like), or None.
+        annotations: list of annotation dicts. "col" key required to specify which
+            y-axis drives y-lookup. Plotly backend only.
+        rangeslider: show rangeslider. Default True. Plotly backend only.
+        theme: "light" (default) or "dark". Plotly backend only.
         left_label: axis title text for the left (primary) y-axis, colored LEFT_COLOR.
             None (default) means no axis title.
         right_label: axis title text for the right (secondary) y-axis, colored RIGHT_COLOR.
@@ -844,8 +1003,9 @@ def tsplot_dual(df, left, right, title: str = "",
     validate_ts(df)
     hlines = _normalize_lines(hlines, "hlines")
     vlines = _normalize_lines(vlines, "vlines")
-    _validate_plot_params(hlines, vlines, title, caller="tsplot_dual",
-                          xlim=xlim, ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs)
+    _validate_plot_params(hlines, vlines, title, subtitle, date_format, caller="tsplot_dual",
+                          ylim=None, xlim=xlim, ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs,
+                          annotations=annotations)
     _validate_cols(df, left, param_name="left")
     _validate_cols(df, right, param_name="right")
 
@@ -853,13 +1013,14 @@ def tsplot_dual(df, left, right, title: str = "",
         backend = get_backend()
 
     if backend == "matplotlib":
-        return _plot_ts_dual_mpl(df, left, right, title, labels,
-                                 hlines, vlines,
+        return _plot_ts_dual_mpl(df, left, right, title, subtitle, labels,
+                                 hlines, vlines, date_format,
                                  ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs, xlim=xlim,
                                  **kwargs)
     else:
-        return _plot_ts_dual_plotly(df, left, right, title, labels,
+        return _plot_ts_dual_plotly(df, left, right, title, subtitle, labels,
                                     hlines, vlines, date_format,
                                     ylim_lhs=ylim_lhs, ylim_rhs=ylim_rhs, xlim=xlim,
-                                    left_label=left_label, right_label=right_label,
-                                    **kwargs)
+                                    annotations=annotations, rangeslider=rangeslider,
+                                    theme=theme, left_label=left_label,
+                                    right_label=right_label, **kwargs)

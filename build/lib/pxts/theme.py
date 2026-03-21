@@ -19,12 +19,12 @@ Blue leads per finance convention (Bloomberg/TradingView primary series color).
 # Source: Wong (2011) Nature Methods 8(6):441, doi:10.1038/nmeth.1618
 pxts_COLORS: list = [
     "#0072B2",  # Blue — primary series, matches finance convention
-    "#D55E00",  # Vermillion (distinguishable from green for red-green weakness)
+    "#E69F00",  # Orange
     "#56B4E9",  # Sky Blue
     "#009E73",  # Bluish Green
-    "#E69F00",  # Orange
+    "#D55E00",  # Vermillion (distinguishable from green for red-green weakness)
     "#CC79A7",  # Reddish Purple
-    #"#F0E442",  # Yellow (use last — low contrast on white background)
+    "#F0E442",  # Yellow (use last — low contrast on white background)
     "#000000",  # Black
 ]
 
@@ -38,7 +38,7 @@ GRID_COLOR: str = "#E5E5E5"        # Subtle gray gridlines
 GRID_ALPHA: float = 0.6
 
 # Dark theme colors (used when theme='dark' is passed to tsplot/tsplot_dual)
-DARK_BACKGROUND_COLOR: str = "#1a1a2e"    # Deep navy background
+DARK_BACKGROUND_COLOR: str = "#1a1a2e"   # Deep navy background
 DARK_PLOT_COLOR: str = "#16213e"          # Slightly lighter navy for plot area
 DARK_GRID_COLOR: str = "#2d2d5a"          # Muted purple-navy grid
 DARK_FONT_COLOR: str = "#e0e0e0"          # Light gray text for readability
