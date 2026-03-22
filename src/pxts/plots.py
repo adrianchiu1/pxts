@@ -5,6 +5,10 @@ Public API:
            dimension=None, title=None, annotations=None, source=None,
            labels=False, backend=None, **kwargs)
 
+    tsgrid(panels, *, nrow=1, ncol=1, xaxis=None, yaxis=None, font=None,
+           dimension=None, title=None, annotations=None, source=None,
+           labels=False, backend=None, **kwargs)
+
 When labels=True, the legend is replaced with FT-style end-of-line labels:
 series names are placed to the right of each line's last data point,
 colored to match. Ignored in dual-axis mode (falls back to legend with a warning).
@@ -1074,3 +1078,494 @@ def tsplot(df, *,
         return _plot_ts_plotly(df, left_cols, right_cols, display_names,
                                xaxis, yaxis, yaxis2, font, dimension, title,
                                annotations, source, labels=labels, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# tsgrid — multi-panel time series grid
+# ---------------------------------------------------------------------------
+
+def _resolve_panel_cols(df, cols_spec):
+    """Resolve a panel's 'cols' spec into (col_list, display_names).
+
+    Works like _resolve_cols but for a single panel (no dual-axis).
+    If cols_spec is None, all columns are plotted.
+
+    Args:
+        df: pandas DataFrame.
+        cols_spec: None, list of column names, or dict {display_name: col_name}.
+
+    Returns:
+        (col_list, display_names) where col_list is a list of df column names
+        and display_names maps df col name -> display name.
+    """
+    if cols_spec is None:
+        return list(df.columns), {}
+
+    if isinstance(cols_spec, dict):
+        col_list = list(cols_spec.values())
+        display_names = {v: k for k, v in cols_spec.items()}
+    elif isinstance(cols_spec, list):
+        col_list = cols_spec
+        display_names = {}
+    else:
+        raise ValueError(
+            f"cols must be list, dict, or None, got {type(cols_spec).__name__}"
+        )
+
+    bad = [c for c in col_list if c not in df.columns]
+    if bad:
+        raise ValueError(
+            f"Column(s) {bad!r} not in DataFrame. Available: {list(df.columns)}"
+        )
+
+    return col_list, display_names
+
+
+def _validate_tsgrid_params(panels, nrow, ncol, xaxis, yaxis, font,
+                              dimension, title, annotations, source):
+    """Validate all parameters for tsgrid."""
+    if not isinstance(panels, dict):
+        raise ValueError(f"panels must be dict, got {type(panels).__name__}")
+    if len(panels) == 0:
+        raise ValueError("panels must not be empty")
+    if not isinstance(nrow, int) or nrow < 1:
+        raise ValueError(f"nrow must be a positive integer, got {nrow!r}")
+    if not isinstance(ncol, int) or ncol < 1:
+        raise ValueError(f"ncol must be a positive integer, got {ncol!r}")
+    if len(panels) > nrow * ncol:
+        raise ValueError(
+            f"Too many panels ({len(panels)}) for a {nrow}x{ncol} grid "
+            f"(max {nrow * ncol})"
+        )
+
+    for panel_name, panel_spec in panels.items():
+        if not isinstance(panel_spec, dict):
+            raise ValueError(
+                f"Panel '{panel_name}' must be a dict, got {type(panel_spec).__name__}"
+            )
+        if "data" not in panel_spec:
+            raise ValueError(f"Panel '{panel_name}' must contain a 'data' key")
+        validate_ts(panel_spec["data"])
+
+    # Validate frequency consistency across panels
+    freqs = []
+    for panel_name, panel_spec in panels.items():
+        df = panel_spec["data"]
+        if len(df.index) >= 2:
+            diffs = df.index.to_series().diff().dropna()
+            min_diff = diffs.min()
+            freqs.append((panel_name, min_diff))
+    if len(freqs) >= 2:
+        base_name, base_freq = freqs[0]
+        for other_name, other_freq in freqs[1:]:
+            if base_freq != other_freq:
+                raise ValueError(
+                    f"All panels must have the same data frequency. "
+                    f"Panel '{base_name}' has frequency {base_freq}, "
+                    f"but panel '{other_name}' has frequency {other_freq}."
+                )
+
+    # Reuse existing validation for shared params (pass yaxis2=None)
+    _validate_tsplot_params(xaxis, yaxis, None, font, dimension, title,
+                            annotations, source)
+
+
+def _build_global_color_map(panels):
+    """Build a global color map assigning consistent colors to display names.
+
+    Collects all unique display names across panels and assigns colors from
+    pxts_COLORS in order. Returns dict mapping display_name -> color.
+    """
+    seen = []
+    for panel_spec in panels.values():
+        df = panel_spec["data"]
+        cols_spec = panel_spec.get("cols")
+        col_list, display_names = _resolve_panel_cols(df, cols_spec)
+        for col in col_list:
+            dname = _get_display_name(col, display_names)
+            if dname not in seen:
+                seen.append(dname)
+
+    color_map = {}
+    for i, dname in enumerate(seen):
+        color_map[dname] = pxts_COLORS[i % len(pxts_COLORS)]
+    return color_map
+
+
+def _compute_unified_x_range(panels):
+    """Compute the union of all panel date ranges as (min_date, max_date)."""
+    all_min = []
+    all_max = []
+    for panel_spec in panels.values():
+        idx = panel_spec["data"].index
+        if len(idx) > 0:
+            all_min.append(idx.min())
+            all_max.append(idx.max())
+    if not all_min:
+        return None
+    return (min(all_min), max(all_max))
+
+
+def _grid_tsgrid_mpl(panels, nrow, ncol, xaxis, yaxis, font, dimension,
+                      title, annotations, source, labels, color_map,
+                      unified_x_range, **kwargs):
+    """matplotlib backend for tsgrid."""
+    import matplotlib.pyplot as plt
+
+    title_main = title.get("main") if title else None
+    title_sub = title.get("sub") or (title.get("subtitle") if title else None) if title else None
+    source_text = ("Source: " + ", ".join(source)) if source else None
+    font_size = font.get("size", DEFAULT_FONT_SIZE) if font else DEFAULT_FONT_SIZE
+
+    fig, axes = plt.subplots(nrow, ncol, squeeze=False)
+    panel_items = list(panels.items())
+
+    for idx, (panel_name, panel_spec) in enumerate(panel_items):
+        row, col_idx = divmod(idx, ncol)
+        ax = axes[row][col_idx]
+
+        df = panel_spec["data"]
+        cols_spec = panel_spec.get("cols")
+        col_list, display_names = _resolve_panel_cols(df, cols_spec)
+
+        sorted_cols = _sorted_cols_by_last_value(df, col_list)
+        for c in sorted_cols:
+            dname = _get_display_name(c, display_names)
+            ax.plot(df.index, df[c], label=dname,
+                    color=color_map.get(dname), **kwargs)
+
+        # Panel subtitle
+        ax.set_title(panel_name, fontweight="bold", fontsize=font_size,
+                     loc="left")
+
+        # Unified x-axis range
+        if xaxis and xaxis.get("range"):
+            r = xaxis["range"]
+            ax.set_xlim(pd.Timestamp(r[0]), pd.Timestamp(r[1]))
+        elif unified_x_range:
+            ax.set_xlim(unified_x_range[0], unified_x_range[1])
+
+        if xaxis and xaxis.get("name"):
+            ax.set_xlabel(xaxis["name"])
+
+        # Y-axis: global range if specified, otherwise auto-scale per panel
+        if yaxis and yaxis.get("range"):
+            r = yaxis["range"]
+            ax.set_ylim(r[0], r[1])
+        if yaxis and yaxis.get("name"):
+            ax.set_ylabel(yaxis["name"])
+
+        # Labels or legend per panel
+        if labels:
+            _draw_line_labels_mpl(ax, df, col_list, display_names, font_size)
+        else:
+            handles, lbls = ax.get_legend_handles_labels()
+            if handles:
+                ax.legend(handles, lbls, loc="best")
+
+        # Annotations
+        if annotations:
+            hlines = _normalize_annot_lines(annotations.get("hline"))
+            vlines = _normalize_annot_lines(annotations.get("vline"))
+            if hlines:
+                _draw_hlines_mpl(ax, hlines)
+            if vlines:
+                _draw_vlines_mpl(ax, vlines)
+
+    # Hide unused axes
+    for idx in range(len(panel_items), nrow * ncol):
+        row, col_idx = divmod(idx, ncol)
+        axes[row][col_idx].set_visible(False)
+
+    # Figure-level chrome
+    if title_main and title_sub:
+        fig.suptitle(f"{title_main}\n{title_sub}", fontweight="bold",
+                     ha="left", x=0.01, fontsize=font_size + 2)
+    elif title_main:
+        fig.suptitle(title_main, fontweight="bold",
+                     ha="left", x=0.01, fontsize=font_size + 2)
+
+    if source_text:
+        fig.text(0.99, 0.01, source_text, fontsize="small",
+                 ha="right", va="bottom", transform=fig.transFigure)
+
+    fig.tight_layout()
+    if title_main:
+        fig.subplots_adjust(top=0.88)
+
+    return fig
+
+
+def _grid_tsgrid_plotly(panels, nrow, ncol, xaxis, yaxis, font, dimension,
+                         title, annotations, source, labels, color_map,
+                         unified_x_range, **kwargs):
+    """plotly backend for tsgrid."""
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    use_labels = labels
+
+    # Layout metrics for chrome
+    m = LayoutMetrics.from_params(dimension, font, title, source,
+                                  is_dual=False, use_labels=use_labels)
+
+    # Panel subtitles as subplot_titles
+    panel_items = list(panels.items())
+    subplot_titles = [name for name, _ in panel_items]
+    # Pad with None for empty grid slots
+    while len(subplot_titles) < nrow * ncol:
+        subplot_titles.append(None)
+
+    fig = make_subplots(
+        rows=nrow, cols=ncol,
+        subplot_titles=subplot_titles,
+        shared_xaxes=False,
+        horizontal_spacing=0.12,
+        vertical_spacing=0.15,
+    )
+    fig.update_layout(template="pxts")
+
+    # Date format from first panel's data
+    first_df = panel_items[0][1]["data"]
+    date_fmt = _infer_hover_date_format(first_df.index)
+    unified_hovertemplate = "%{fullData.name}: %{y:.4g}<extra></extra>"
+
+    # Track which display names have been added to legend already
+    legend_names_seen = set()
+
+    for idx, (panel_name, panel_spec) in enumerate(panel_items):
+        row = idx // ncol + 1
+        col = idx % ncol + 1
+
+        df = panel_spec["data"]
+        cols_spec = panel_spec.get("cols")
+        col_list, display_names = _resolve_panel_cols(df, cols_spec)
+
+        sorted_cols = _sorted_cols_by_last_value(df, col_list)
+        for c in sorted_cols:
+            dname = _get_display_name(c, display_names)
+            color = color_map.get(dname)
+            show_legend = dname not in legend_names_seen
+            legend_names_seen.add(dname)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=df.index, y=df[c], mode="lines",
+                    name=dname, legendgroup=dname,
+                    showlegend=show_legend,
+                    hovertemplate=unified_hovertemplate,
+                    line=dict(color=color),
+                ),
+                row=row, col=col,
+            )
+
+        # Per-panel annotations
+        if annotations:
+            hlines = _normalize_annot_lines(annotations.get("hline"))
+            vlines = _normalize_annot_lines(annotations.get("vline"))
+            if hlines:
+                if isinstance(hlines, dict):
+                    items = hlines.items()
+                else:
+                    items = [(None, y) for y in hlines]
+                for label, y_val in items:
+                    fig.add_hline(y=y_val, line_dash="dash",
+                                 line_color="gray", line_width=1,
+                                 row=row, col=col)
+            if vlines:
+                if isinstance(vlines, dict):
+                    items = vlines.items()
+                else:
+                    items = [(None, x) for x in vlines]
+                for label, x_val in items:
+                    fig.add_vline(x=x_val, line_dash="dot",
+                                 line_color="gray", line_width=1,
+                                 row=row, col=col)
+
+        # Per-panel line labels
+        if use_labels:
+            # Determine the xaxis/yaxis refs for this subplot
+            axis_suffix = "" if idx == 0 else str(idx + 1)
+            yaxis_ref = f"y{axis_suffix}" if axis_suffix else "y"
+
+            entries = []
+            for c in col_list:
+                dname = _get_display_name(c, display_names)
+                series = df[c].dropna()
+                if series.empty:
+                    continue
+                last_y = float(series.iloc[-1])
+                color = color_map.get(dname)
+                entries.append((dname, last_y, color))
+
+            if entries:
+                y_vals = [e[1] for e in entries]
+                y_min, y_max = min(y_vals), max(y_vals)
+                span = y_max - y_min if y_max != y_min else 1
+                y_min -= span * 0.05
+                y_max += span * 0.05
+                data_range = y_max - y_min if y_max != y_min else 1
+                panel_h = m.chart_h_px / nrow
+                min_gap = data_range * (m.font_size * 1.4) / panel_h
+
+                y_positions = [(i, e[1]) for i, e in enumerate(entries)]
+                nudged = _nudge_label_positions(y_positions, min_gap)
+
+                for i, (dname, _last_y, color) in enumerate(entries):
+                    y = nudged[i]
+                    fig.add_annotation(
+                        text=f"<b>{dname}</b>",
+                        x=1, xref=f"x{axis_suffix} domain" if axis_suffix else "x domain",
+                        y=y, yref=yaxis_ref,
+                        xanchor="left", yanchor="middle",
+                        xshift=6, showarrow=False,
+                        font=dict(size=m.font_size - 1, color=color),
+                    )
+
+    # Configure all x-axes with spikes for synchronized crosshair
+    total_panels = len(panel_items)
+    for idx in range(total_panels):
+        axis_suffix = "" if idx == 0 else str(idx + 1)
+        xaxis_key = f"xaxis{axis_suffix}" if axis_suffix else "xaxis"
+        yaxis_key = f"yaxis{axis_suffix}" if axis_suffix else "yaxis"
+
+        xaxis_update = dict(
+            type="date", showgrid=False,
+            hoverformat=date_fmt,
+            showspikes=True, spikemode="across", spikesnap="cursor",
+            spikedash="dot", spikethickness=1, spikecolor="#999999",
+        )
+        # Unified x-axis range
+        if xaxis and xaxis.get("range"):
+            r = xaxis["range"]
+            xaxis_update["range"] = [str(pd.Timestamp(r[0])),
+                                     str(pd.Timestamp(r[1]))]
+        elif unified_x_range:
+            xaxis_update["range"] = [str(unified_x_range[0]),
+                                     str(unified_x_range[1])]
+        if xaxis and xaxis.get("name"):
+            xaxis_update["title_text"] = xaxis["name"]
+
+        yaxis_update = dict(
+            showgrid=True, gridcolor=GRID_COLOR, zeroline=False,
+            ticksuffix="  ",
+        )
+        if yaxis and yaxis.get("range"):
+            yaxis_update["range"] = list(yaxis["range"])
+        if yaxis and yaxis.get("name"):
+            yaxis_update["title_text"] = yaxis["name"]
+
+        fig.update_layout(**{xaxis_key: xaxis_update, yaxis_key: yaxis_update})
+
+    # Style panel subtitles (bold, left-aligned)
+    for ann in fig.layout.annotations:
+        if ann.text in [name for name, _ in panel_items]:
+            ann.font = dict(size=m.font_size, color=FT_FONT_COLOR,
+                            family=m.font_family)
+            ann.x = ann.x - 0.04  # nudge left
+            ann.xanchor = "left"
+
+    # Overall figure dimensions
+    total_w = int(m.total_w_px)
+    total_h = int(m.total_h_px)
+
+    tooltip_font_size = m.font_size - 3
+
+    layout_kwargs = dict(
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor="white",
+            bordercolor="#cccccc",
+            font=dict(size=tooltip_font_size, family=m.font_family,
+                      color=FT_FONT_COLOR),
+        ),
+        width=total_w,
+        height=total_h,
+        margin=dict(l=m.left_margin_px, r=m.right_margin_px,
+                    t=int(m.top_space_px), b=int(m.bottom_space_px)),
+        font=dict(family=m.font_family, size=m.font_size - 1,
+                  color=FT_FONT_COLOR),
+    )
+
+    if use_labels:
+        layout_kwargs["showlegend"] = False
+    else:
+        layout_kwargs["legend"] = dict(
+            orientation="h",
+            x=0, y=0.95,
+            xanchor="left", yanchor="bottom",
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
+        )
+
+    _draw_title_plotly(fig, m, layout_kwargs)
+    fig.update_layout(**layout_kwargs)
+
+    _draw_accent_line_plotly(fig, m)
+    _draw_source_plotly(fig, m)
+
+    return fig
+
+
+def tsgrid(panels, *, nrow=1, ncol=1, xaxis=None, yaxis=None,
+           font=None, dimension=None, title=None, annotations=None,
+           source=None, labels=False, backend=None, **kwargs):
+    """Plot a grid of time series panels.
+
+    Each panel is an independent time series chart. All panels share the same
+    x-axis range (union of all date ranges), color assignment (by display
+    name), and global styling. Hovering on one panel shows the crosshair
+    on all panels (Plotly only).
+
+    Args:
+        panels: dict mapping panel subtitle (str) to panel spec dict.
+            Each panel spec has keys:
+                data: pandas DataFrame with DatetimeIndex.
+                cols (optional): list of column names or dict
+                    {display_name: col_name}. Defaults to all columns.
+        nrow: number of grid rows (default 1).
+        ncol: number of grid columns (default 1).
+        xaxis: dict with optional keys: range, name. Applied globally.
+        yaxis: dict with optional keys: range, name.
+            range: if provided, applied to all panels identically.
+            If omitted, each panel auto-scales independently.
+        font: dict with optional keys: size, family.
+        dimension: dict with optional keys: width, aspect_ratio.
+            Governs total figure size.
+        title: dict with optional keys: main (str), sub (str).
+        annotations: dict with optional keys: hline, vline.
+            Applied to all panels.
+        source: list of source strings. Rendered once at the bottom.
+        labels: bool. If True, use end-of-line labels instead of legend.
+        backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
+        **kwargs: forwarded to the underlying plot call.
+
+    Returns:
+        matplotlib.figure.Figure or plotly.graph_objects.Figure
+
+    Raises:
+        pxtsValidationError: if any panel's data lacks a DatetimeIndex.
+        ValueError: for invalid parameters, frequency mismatch, etc.
+    """
+    # Default source
+    if source is None:
+        source = ["Own calculations"]
+
+    _validate_tsgrid_params(panels, nrow, ncol, xaxis, yaxis, font,
+                             dimension, title, annotations, source)
+
+    color_map = _build_global_color_map(panels)
+    unified_x_range = _compute_unified_x_range(panels)
+
+    if backend is None:
+        backend = get_backend()
+
+    if backend == "matplotlib":
+        return _grid_tsgrid_mpl(panels, nrow, ncol, xaxis, yaxis, font,
+                                 dimension, title, annotations, source,
+                                 labels, color_map, unified_x_range, **kwargs)
+    else:
+        return _grid_tsgrid_plotly(panels, nrow, ncol, xaxis, yaxis, font,
+                                   dimension, title, annotations, source,
+                                   labels, color_map, unified_x_range,
+                                   **kwargs)

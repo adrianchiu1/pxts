@@ -46,7 +46,7 @@ from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .t
 from pxts.io import read_ts, write_ts, read_bdh  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme, FT_COLORS, OKABE_ITO_COLORS  # noqa: E402
-from pxts.plots import tsplot  # noqa: E402
+from pxts.plots import tsplot, tsgrid  # noqa: E402
 
 apply_theme()  # Runs once at import — registers plotly template + sets matplotlib rcParams
 
@@ -62,6 +62,7 @@ __all__ = [
     "get_backend",
     "IS_JUPYTER",
     "tsplot",
+    "tsgrid",
     "FT_COLORS",
     "OKABE_ITO_COLORS",
 ]
