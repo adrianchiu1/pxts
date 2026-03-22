@@ -239,3 +239,57 @@ def test_infer_freq_non_datetimeindex_raises(bad_df):
     """infer_freq propagates pxtsValidationError from validate_ts gate."""
     with pytest.raises(pxtsValidationError):
         infer_freq(bad_df)
+
+
+# ---------------------------------------------------------------------------
+# to_dense with freq=None (auto-detection)
+# ---------------------------------------------------------------------------
+
+
+def test_to_dense_auto_freq_daily():
+    """to_dense(freq=None) on sparse calendar-day df infers 'D' and fills gaps.
+
+    Three rows with 1-day min gap including a weekend ensure infer_freq returns
+    'D'. The larger gap (Sun → Tue) is then filled by asfreq('D').
+    """
+    # Sat 6, Sun 7, Tue 9 — min diff = 1 day; includes weekend → infer_freq='D'
+    dates = pd.DatetimeIndex(["2024-01-06", "2024-01-07", "2024-01-09"])
+    df = pd.DataFrame({"v": [1.0, 2.0, 3.0]}, index=dates)
+    result = to_dense(df)
+    assert len(result) == 4  # Sat 6, Sun 7, Mon 8, Tue 9
+    assert result.loc["2024-01-08", "v"] != result.loc["2024-01-08", "v"]  # NaN
+
+
+def test_to_dense_auto_freq_business_day():
+    """to_dense(freq=None) on weekday-only sparse df infers 'B' and fills gaps.
+
+    Three rows with 1-day min gap, all weekdays, so infer_freq returns 'B'.
+    The larger gap (Tue → Thu) is then filled by asfreq('B').
+    """
+    # Mon 1, Tue 2, Thu 4 — min diff = 1 day; no weekends → infer_freq='B'
+    dates = pd.DatetimeIndex(["2024-01-01", "2024-01-02", "2024-01-04"])
+    df = pd.DataFrame({"v": [1.0, 2.0, 4.0]}, index=dates)
+    result = to_dense(df)
+    assert len(result) == 4  # Mon, Tue, Wed, Thu
+    assert result.loc["2024-01-03", "v"] != result.loc["2024-01-03", "v"]  # NaN
+
+
+def test_to_dense_auto_freq_hourly():
+    """to_dense(freq=None) on sparse hourly df infers 'h' and fills gaps.
+
+    Three rows with 1-hour min gap; the larger gap (01:00 → 03:00) is filled.
+    """
+    # Hours 00, 01, 03 — min diff = 1h → infer_freq='h'
+    idx = pd.DatetimeIndex(["2024-01-01 00:00", "2024-01-01 01:00", "2024-01-01 03:00"])
+    df = pd.DataFrame({"v": [0.0, 1.0, 3.0]}, index=idx)
+    result = to_dense(df)
+    assert len(result) == 4  # 00, 01, 02, 03
+    assert result.loc["2024-01-01 02:00", "v"] != result.loc["2024-01-01 02:00", "v"]  # NaN
+
+
+def test_to_dense_auto_freq_single_row_raises():
+    """to_dense(freq=None) on single-row df raises ValueError (cannot infer freq)."""
+    idx = pd.DatetimeIndex(["2024-01-01"])
+    df = pd.DataFrame({"v": [1.0]}, index=idx)
+    with pytest.raises(ValueError):
+        to_dense(df)

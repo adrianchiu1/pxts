@@ -79,7 +79,7 @@ def set_tz(df: pd.DataFrame, tz: str = "UTC") -> pd.DataFrame:
 
 
 def to_dense(
-    df: pd.DataFrame, freq: str, fill: str | None = None
+    df: pd.DataFrame, freq: str | None = None, fill: str | None = None
 ) -> pd.DataFrame:
     """Regularize a sparse DatetimeIndex to equal intervals.
 
@@ -91,11 +91,14 @@ def to_dense(
 
     If the index is already at `freq`, returns df unchanged (no-op).
 
-    Note: Cannot distinguish 'B' from 'D' from index diffs alone.
-    If the existing index is already daily (freq='D'), this is a no-op
-    even if freq='B' was intended. Pass freq explicitly.
+    If freq is None, the frequency is inferred automatically via infer_freq().
+    Note: auto-detection cannot distinguish 'B' from 'D' if all timestamps
+    are weekdays — it will return 'B' in that case. Pass freq explicitly to
+    override.
     """
     validate_ts(df)
+    if freq is None:
+        freq = infer_freq(df)
     # Guard: no-op if already at requested frequency (normalize alias before comparing)
     if df.index.freq is not None:
         try:
