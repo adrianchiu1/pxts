@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from pxts.core import infer_freq, set_tz, to_dense, validate_ts  # noqa: F401
-from pxts.io import write_ts as _write_ts, read_bdh as _read_bdh
+from pxts.io import write_ts as _write_ts, read_bdh as _read_bdh, read_mb as _read_mb
 from pxts.plots import tsplot as _plot
 
 
@@ -50,6 +50,28 @@ class TsAccessor:
     def read_bdh(self, tickers, start, field: str = "PX_LAST", end=None) -> pd.DataFrame:
         """Fetch Bloomberg BDH historical data. See pxts.io.read_bdh for details."""
         return _read_bdh(tickers, start, field=field, end=end)
+
+    def read_mb(
+        self,
+        series_names,
+        *,
+        unified: bool = False,
+        frequency=None,
+        currency: str | None = None,
+        calendar_merge_mode=None,
+        start=None,
+        end=None,
+    ) -> pd.DataFrame:
+        """Fetch Macrobond time series data. See pxts.io.read_mb for details."""
+        return _read_mb(
+            series_names,
+            unified=unified,
+            frequency=frequency,
+            currency=currency,
+            calendar_merge_mode=calendar_merge_mode,
+            start=start,
+            end=end,
+        )
 
     def plot(
         self,

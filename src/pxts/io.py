@@ -1,9 +1,11 @@
-"""pxts I/O layer — read_ts, write_ts, and read_bdh for CSV round-trips and Bloomberg data.
+"""pxts I/O layer — read_ts, write_ts, read_bdh, and read_mb for CSV round-trips and data feeds.
 
 Public API:
     read_ts(path, *, tz=None, date_format=None) -> pd.DataFrame
     write_ts(df, path, *, date_format=None) -> None
     read_bdh(tickers, start, field='PX_LAST', end=None) -> pd.DataFrame
+    read_mb(series_names, *, unified=False, frequency=None, currency=None,
+            calendar_merge_mode=None, start=None, end=None) -> pd.DataFrame
 
 Internal:
     _detect_date_format(sample) -> tuple[str, bool]
@@ -243,3 +245,170 @@ def read_bdh(
     data.index = pd.to_datetime(data.index)
 
     return validate_ts(data)
+
+
+def read_mb(
+    series_names,
+    *,
+    unified: bool = False,
+    frequency=None,
+    currency: str | None = None,
+    calendar_merge_mode=None,
+    start=None,
+    end=None,
+) -> pd.DataFrame:
+    """Fetch Macrobond time series data.
+
+    Downloads one or more series from the Macrobond Data API and returns a
+    wide-format DataFrame with a DatetimeIndex and one column per series.
+
+    By default uses ``get_series`` for a simple fetch. When ``unified=True``,
+    uses ``get_unified_series`` to align series to a common frequency and
+    calendar — the alignment parameters (frequency, currency,
+    calendar_merge_mode, start, end) are only used in unified mode.
+
+    Requires macrobond-data-api (optional dependency). Install with:
+        pip install pxts[macrobond]
+
+    Parameters
+    ----------
+    series_names : str or list of str
+        Macrobond series identifiers, e.g. ``['usgdp', 'gbgdp']``.
+    unified : bool
+        If True, use ``get_unified_series`` to align all series to a common
+        frequency and calendar. If False (default), fetch raw series with
+        ``get_series`` and outer-join on dates.
+    frequency : SeriesFrequency or None
+        Target frequency for unified mode (e.g. ``SeriesFrequency.ANNUAL``).
+        Ignored when ``unified=False``.
+    currency : str or None
+        Target currency for unified mode (e.g. ``'USD'``).
+        Ignored when ``unified=False``.
+    calendar_merge_mode : CalendarMergeMode or None
+        Calendar merge strategy for unified mode.
+        Ignored when ``unified=False``.
+    start : str, datetime, or StartOrEndPoint, or None
+        Start date constraint. In unified mode, passed as ``start_point``
+        (wrapped in ``StartOrEndPoint`` if a string/datetime is given).
+        In non-unified mode, used to filter the returned DataFrame.
+    end : str, datetime, or StartOrEndPoint, or None
+        End date constraint. In unified mode, passed as ``end_point``.
+        In non-unified mode, used to filter the returned DataFrame.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide-format DataFrame with DatetimeIndex (rows = dates,
+        columns = series names).
+
+    Raises
+    ------
+    ImportError
+        If macrobond-data-api is not installed.
+    pxtsValidationError
+        If the returned DataFrame does not have a DatetimeIndex.
+    """
+    try:
+        import macrobond_data_api as mda
+    except ImportError:
+        raise ImportError(
+            "macrobond-data-api required for read_mb(). "
+            "Install with: pip install macrobond-data-api"
+        )
+
+    if isinstance(series_names, str):
+        series_names = [series_names]
+
+    if unified:
+        data = _read_mb_unified(
+            mda, series_names,
+            frequency=frequency,
+            currency=currency,
+            calendar_merge_mode=calendar_merge_mode,
+            start=start,
+            end=end,
+        )
+    else:
+        data = _read_mb_simple(mda, series_names, start=start, end=end)
+
+    return validate_ts(data)
+
+
+def _read_mb_simple(mda, series_names, *, start=None, end=None) -> pd.DataFrame:
+    """Fetch raw series via get_series and outer-join into a wide DataFrame."""
+    entities = mda.get_series(series_names)
+
+    frames = {}
+    for entity in entities:
+        if entity.is_error:
+            warnings.warn(
+                f"pxts: Macrobond series '{entity.name}' returned error: "
+                f"{entity.error_message}",
+                UserWarning,
+                stacklevel=4,
+            )
+            continue
+        s = pd.Series(
+            data=entity.values,
+            index=pd.to_datetime(entity.dates),
+            name=entity.name,
+        )
+        frames[entity.name] = s
+
+    if not frames:
+        return pd.DataFrame(index=pd.DatetimeIndex([], name=None))
+
+    data = pd.DataFrame(frames)
+    data.index = pd.to_datetime(data.index)
+
+    # Apply date filters if provided
+    if start is not None:
+        data = data.loc[pd.to_datetime(start):]
+    if end is not None:
+        data = data.loc[:pd.to_datetime(end)]
+
+    return data
+
+
+def _read_mb_unified(
+    mda, series_names, *, frequency=None, currency=None,
+    calendar_merge_mode=None, start=None, end=None,
+) -> pd.DataFrame:
+    """Fetch aligned series via get_unified_series."""
+    from macrobond_data_api.common.types import SeriesEntry, StartOrEndPoint
+    from macrobond_data_api.common.enums import SeriesFrequency
+
+    entries = [SeriesEntry(name=n) for n in series_names]
+
+    kwargs = {}
+    if frequency is not None:
+        kwargs["frequency"] = frequency
+    if currency is not None:
+        kwargs["currency"] = currency
+    if calendar_merge_mode is not None:
+        kwargs["calendar_merge_mode"] = calendar_merge_mode
+
+    # Wrap plain date strings/datetimes into StartOrEndPoint
+    if start is not None:
+        if not isinstance(start, StartOrEndPoint):
+            start = StartOrEndPoint(time=str(start), mode=None)
+        kwargs["start_point"] = start
+    if end is not None:
+        if not isinstance(end, StartOrEndPoint):
+            end = StartOrEndPoint(time=str(end), mode=None)
+        kwargs["end_point"] = end
+
+    result = mda.get_unified_series(*entries, **kwargs)
+    df = result.to_pd_data_frame()
+
+    # to_pd_data_frame returns first column as "Date" and rest as series values
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"])
+        df = df.set_index("Date")
+    elif "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+
+    df.columns = series_names
+
+    return df
