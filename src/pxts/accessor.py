@@ -35,7 +35,7 @@ class TsAccessor:
         """Normalize the DatetimeIndex timezone. See pxts.core.set_tz for details."""
         return set_tz(self._obj, tz=tz)
 
-    def to_dense(self, freq: str, fill: str | None = None) -> pd.DataFrame:
+    def to_dense(self, freq: str | None = None, fill: str | None = None) -> pd.DataFrame:
         """Regularize a sparse DatetimeIndex to equal intervals. See pxts.core.to_dense."""
         return to_dense(self._obj, freq=freq, fill=fill)
 
