@@ -47,7 +47,7 @@ class TsAccessor:
         """Write this DataFrame to CSV. See pxts.io.write_ts for details."""
         _write_ts(self._obj, path, date_format=date_format)
 
-    def read_bdh(self, tickers, start, field: str = "PX_LAST", end=None) -> pd.DataFrame:
+    def read_bdh(self, tickers, start="2000-01-01", field: str = "PX_LAST", end=None) -> pd.DataFrame:
         """Fetch Bloomberg BDH historical data. See pxts.io.read_bdh for details."""
         return _read_bdh(tickers, start, field=field, end=end)
 
