@@ -175,7 +175,7 @@ def write_ts(
 
 def read_bdh(
     tickers,
-    start,
+    start="2000-01-01",
     field: str = "PX_LAST",
     end=None,
 ) -> pd.DataFrame:
@@ -193,7 +193,7 @@ def read_bdh(
     tickers : list of str
         Bloomberg ticker strings, e.g. ['AAPL US Equity', 'MSFT US Equity'].
     start : str, datetime, or pd.Timestamp
-        Start date (inclusive). Converted to 'YYYYMMDD' string internally.
+        Start date (inclusive). Defaults to '2000-01-01'. Converted to 'YYYYMMDD' string internally.
     field : str
         Bloomberg field name. Defaults to 'PX_LAST'.
     end : str, datetime, pd.Timestamp, or None
