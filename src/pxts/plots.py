@@ -470,8 +470,8 @@ def _estimate_label_width_px(labels, font_size):
         for lbl in labels
     )
     text_px = longest_px * scale
-    # xshift=6 is hardcoded in the annotation; trailing gap = 10px
-    return int(text_px) + 6 + 10
+    # xshift=8 is hardcoded in the annotation; trailing gap = 12px
+    return int(text_px) + 8 + 12
 
 
 # ---------------------------------------------------------------------------
@@ -749,7 +749,7 @@ def _draw_line_labels_plotly(fig, df, cols, display_names, font_size, m):
             y=y, yref="y",
             xanchor="left",
             yanchor="middle",
-            xshift=6,
+            xshift=8,
             showarrow=False,
             font=dict(size=font_size - 1, color=color),
         )
