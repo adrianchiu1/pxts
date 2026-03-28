@@ -358,9 +358,30 @@ class LayoutMetrics:
         )
 
     @property
+    def _accent_title_gap_px(self) -> float:
+        """Gap between accent line bottom and title top (= desired gap between chrome elements)."""
+        return self.title_top_px - (self.accent_top_px + ACCENT_LINE_WIDTH / 2)
+
+    @property
+    def _last_chrome_bottom_px(self) -> float:
+        """Estimated pixel position of the bottom of the last visible title/subtitle line."""
+        title_line_h = round((self.font_size + 6) * 1.2)
+        if self.sub_h_px > 0:
+            sub_line_h = round((self.font_size + 2) * 1.2)
+            return self.title_top_px + title_line_h + sub_line_h
+        elif self.title_h_px > 0:
+            return self.title_top_px + title_line_h
+        else:
+            return self.accent_top_px + ACCENT_LINE_WIDTH
+
+    @property
+    def legend_top_px(self) -> float:
+        """Pixels from figure top to the top of the legend."""
+        return self._last_chrome_bottom_px + self._accent_title_gap_px
+
+    @property
     def top_space_px(self) -> float:
-        return (self.accent_top_px + self.accent_gap_px + self.title_h_px
-                + self.sub_h_px + self.legend_h_px + self.legend_gap_px)
+        return self.legend_top_px + self.legend_h_px
 
     @property
     def bottom_space_px(self) -> float:
@@ -1047,7 +1068,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     else:
         layout_kwargs["legend"] = dict(
             orientation="h",
-            x=0, y=0.95,
+            x=0, y=1,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
