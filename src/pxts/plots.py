@@ -47,6 +47,19 @@ LEFT_COLOR: str = pxts_COLORS[0]   # '#0072B2' Blue
 RIGHT_COLOR: str = pxts_COLORS[1]  # '#D55E00' Vermillion
 
 
+def _estimate_xaxis_pad_px(idx: pd.DatetimeIndex, font_size: int) -> int:
+    """Estimate pixels needed for x-axis tick labels based on data frequency.
+
+    Single-line formats (annual, monthly, daily) need one line-height.
+    Formats with both a date and a time component ('%Y-%m-%d %H:%M…') are long
+    enough that Plotly may wrap or rotate them, so two line-heights are used.
+    """
+    fmt = _infer_hover_date_format(idx)
+    line_h = int(font_size * 2)          # generous line-height per row of text
+    lines = 2 if len(fmt) > 10 else 1   # datetime formats are >10 chars
+    return lines * line_h + 10           # +10px breathing room
+
+
 def _infer_hover_date_format(idx: pd.DatetimeIndex) -> str:
     """Return a d3-time-format string appropriate for the data's periodicity.
 
@@ -288,7 +301,7 @@ class LayoutMetrics:
 
     @classmethod
     def from_params(cls, dimension, font, title, source, *, is_dual: bool = False,
-                    labels_margin_px: int = 0, use_labels: bool = False):
+                    labels_margin_px: int = 0, use_labels: bool = False, idx=None):
         """Build LayoutMetrics from user-facing parameter dicts."""
         if dimension:
             w = dimension.get("width", DEFAULT_CHART_WIDTH)
@@ -320,6 +333,11 @@ class LayoutMetrics:
         else:
             right_margin = 20
 
+        pad_bottom = (
+            _estimate_xaxis_pad_px(idx, font_size) if idx is not None and len(idx) > 0
+            else 45
+        )
+
         return cls(
             chart_w_px=w,
             chart_h_px=w / ar,
@@ -334,6 +352,7 @@ class LayoutMetrics:
             right_margin_px=right_margin,
             legend_h_px=0 if use_labels else 28,
             legend_gap_px=0 if use_labels else 6,
+            pad_bottom_px=pad_bottom,
         )
 
     @property
@@ -531,7 +550,7 @@ def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
         x=m.left_align_x_plotly, y=0,
         xref="paper", yref="paper",
         xanchor="left", yanchor="top",
-        yshift=-(m.bottom_space_px - m.pad_bottom_px),
+        yshift=-m.pad_bottom_px,
         showarrow=False,
         font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
     )
@@ -875,7 +894,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
 
     m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual,
                                   labels_margin_px=labels_margin_px,
-                                  use_labels=use_labels)
+                                  use_labels=use_labels, idx=df.index)
 
     if is_dual:
         from plotly.subplots import make_subplots
@@ -934,6 +953,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             hoverformat=date_fmt,
             showspikes=True, spikemode="across", spikesnap="cursor",
             spikedash="dot", spikethickness=1, spikecolor="#999999",
+            automargin=True,
         ),
         hoverlabel=dict(
             bgcolor="white",
