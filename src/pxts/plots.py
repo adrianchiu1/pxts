@@ -892,7 +892,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     )
 
     sorted_left = _sorted_cols_by_last_value(df, left_cols)
-    for col in sorted_left:
+    for i, col in enumerate(sorted_left):
         name = _get_display_name(col, display_names)
         trace_kwargs = dict(
             x=df.index, y=df[col], mode="lines",
@@ -902,6 +902,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             trace_kwargs["line"] = dict(color=LEFT_COLOR)
             fig.add_trace(go.Scatter(**trace_kwargs), secondary_y=False)
         else:
+            trace_kwargs["line"] = dict(color=pxts_COLORS[i % len(pxts_COLORS)])
             fig.add_trace(go.Scatter(**trace_kwargs))
 
     if is_dual:
