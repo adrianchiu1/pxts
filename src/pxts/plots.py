@@ -37,6 +37,7 @@ from pxts.theme import (
     ACCENT_LINE_LENGTH,
     DEFAULT_CHART_WIDTH,
     DEFAULT_ASPECT_RATIO,
+    MASTER_SPACING_PX,
 )
 
 # ---------------------------------------------------------------------------
@@ -45,6 +46,25 @@ from pxts.theme import (
 
 LEFT_COLOR: str = pxts_COLORS[0]   # '#0072B2' Blue
 RIGHT_COLOR: str = pxts_COLORS[1]  # '#D55E00' Vermillion
+
+# Layout constants used in chrome-element sizing and positioning
+_LINE_HEIGHT: float = 1.2        # typographic line-height multiplier for font height estimates
+_TITLE_EXTRA_GAP_PX: int = 5     # extra px added on top of MASTER_SPACING_PX for accent→title gap
+_LEGEND_MARKER_PX: int = 30      # width of a Plotly horizontal-legend line marker
+_LEGEND_ITEM_GAP_PX: int = 10    # horizontal gap between legend items
+
+
+def _estimate_xaxis_pad_px(idx: pd.DatetimeIndex, font_size: int) -> int:
+    """Estimate pixels needed for x-axis tick labels based on data frequency.
+
+    Single-line formats (annual, monthly, daily) need one line-height.
+    Formats with both a date and a time component ('%Y-%m-%d %H:%M…') are long
+    enough that Plotly may wrap or rotate them, so two line-heights are used.
+    """
+    fmt = _infer_hover_date_format(idx)
+    line_h = int(font_size * 2)          # generous line-height per row of text
+    lines = 2 if len(fmt) > 10 else 1   # datetime formats are >10 chars
+    return lines * line_h + 10           # +10px breathing room
 
 
 def _infer_hover_date_format(idx: pd.DatetimeIndex) -> str:
@@ -260,8 +280,7 @@ class LayoutMetrics:
     Plotly uses pixel values directly.
 
     The vertical layout (top to bottom) is:
-        pad_top_px | accent line | accent_gap_px | title | subtitle |
-        legend_gap_px | legend | chart area | source | pad_bottom_px
+        accent_top_px | accent line | title | subtitle | legend | chart area | source | pad_bottom_px
     """
     # Resolved chart parameters
     chart_w_px: float
@@ -273,12 +292,10 @@ class LayoutMetrics:
     source_text: Optional[str]
 
     # Vertical spacing (pixels at 100 DPI)
-    pad_top_px: float = 8
-    accent_gap_px: float = 6
+    accent_top_px: float = MASTER_SPACING_PX + 1.5  # figure top → accent line centre
     title_h_px: float = 0       # 0 when no title
     sub_h_px: float = 0         # 0 when no subtitle
     legend_h_px: float = 28
-    legend_gap_px: float = 6
     source_h_px: float = 0      # 0 when no source
     pad_bottom_px: float = 45   # room for x-axis tick labels
 
@@ -288,7 +305,8 @@ class LayoutMetrics:
 
     @classmethod
     def from_params(cls, dimension, font, title, source, *, is_dual: bool = False,
-                    labels_margin_px: int = 0, use_labels: bool = False):
+                    labels_margin_px: int = 0, use_labels: bool = False, idx=None,
+                    legend_labels: list | None = None):
         """Build LayoutMetrics from user-facing parameter dicts."""
         if dimension:
             w = dimension.get("width", DEFAULT_CHART_WIDTH)
@@ -320,6 +338,11 @@ class LayoutMetrics:
         else:
             right_margin = 20
 
+        pad_bottom = (
+            _estimate_xaxis_pad_px(idx, font_size) if idx is not None and len(idx) > 0
+            else 45
+        )
+
         return cls(
             chart_w_px=w,
             chart_h_px=w / ar,
@@ -330,16 +353,47 @@ class LayoutMetrics:
             source_text=source_text,
             title_h_px=32 if title_main else 0,
             sub_h_px=24 if title_sub else 0,
-            source_h_px=24 if source_text else 0,
+            source_h_px=(MASTER_SPACING_PX + font_size * 1.5 - 1) if source_text else 0,
             right_margin_px=right_margin,
-            legend_h_px=0 if use_labels else 28,
-            legend_gap_px=0 if use_labels else 6,
+            legend_h_px=0 if use_labels else _estimate_legend_h_px(legend_labels or [], font_size, w),
+            pad_bottom_px=pad_bottom,
         )
 
     @property
+    def title_top_px(self) -> float:
+        """Pixels from figure top to the top of the title text (yanchor='top' true-top anchor)."""
+        return MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH + _TITLE_EXTRA_GAP_PX
+
+    @property
+    def _title_line_h_px(self) -> int:
+        return round((self.font_size + 6) * _LINE_HEIGHT)
+
+    @property
+    def _sub_line_h_px(self) -> int:
+        return round((self.font_size + 2) * _LINE_HEIGHT)
+
+    @property
+    def _accent_title_gap_px(self) -> float:
+        """Consistent chrome gap: accent-bottom → title-top, reused for title/sub → legend."""
+        return self.title_top_px - (self.accent_top_px + ACCENT_LINE_WIDTH / 2)
+
+    @property
+    def _last_chrome_bottom_px(self) -> float:
+        """Estimated pixel position of the bottom of the last visible title/subtitle line."""
+        if self.title_sub:
+            return self.title_top_px + self._title_line_h_px + self._sub_line_h_px
+        if self.title_main:
+            return self.title_top_px + self._title_line_h_px
+        return self.accent_top_px + ACCENT_LINE_WIDTH
+
+    @property
+    def legend_top_px(self) -> float:
+        """Pixels from figure top to the top of the legend."""
+        return self._last_chrome_bottom_px + self._accent_title_gap_px
+
+    @property
     def top_space_px(self) -> float:
-        return (self.pad_top_px + self.accent_gap_px + self.title_h_px
-                + self.sub_h_px + self.legend_h_px + self.legend_gap_px)
+        return self.legend_top_px + self.legend_h_px
 
     @property
     def bottom_space_px(self) -> float:
@@ -355,8 +409,8 @@ class LayoutMetrics:
 
     @property
     def left_align_x_plotly(self) -> float:
-        """X coordinate in plotly paper space that aligns with y-axis labels."""
-        return -(self.left_margin_px * 0.85) / self.chart_w_px
+        """X in plotly paper space corresponding to MASTER_SPACING_PX from the figure left."""
+        return (MASTER_SPACING_PX - self.left_margin_px) / self.chart_w_px
 
 
 # ---------------------------------------------------------------------------
@@ -422,15 +476,87 @@ def _nudge_label_positions(y_positions, min_gap):
     return {idx: y for idx, y in items}
 
 
-def _estimate_label_width_px(labels, font_size):
-    """Estimate the pixel width of the longest label string.
+# Per-character advance widths for a proportional sans-serif (Helvetica/Arial metrics,
+# measured at 16px). Scaled linearly to actual font_size at render time.
+# Covers the printable ASCII range; anything outside falls back to the median width.
+_CHAR_WIDTHS_16PX: dict[str, float] = {
+    " ": 4.4, "!": 4.4, '"': 5.7, "#": 8.9, "$": 8.9, "%": 14.2,
+    "&": 10.7, "'": 3.1, "(": 5.3, ")": 5.3, "*": 6.2, "+": 9.3,
+    ",": 4.4, "-": 5.3, ".": 4.4, "/": 4.4,
+    "0": 8.9, "1": 7.7, "2": 8.9, "3": 8.9, "4": 8.9,
+    "5": 8.9, "6": 8.9, "7": 8.9, "8": 8.9, "9": 8.9,
+    ":": 4.4, ";": 4.4, "<": 9.3, "=": 9.3, ">": 9.3,
+    "?": 8.9, "@": 16.2,
+    "A": 10.7, "B": 10.7, "C": 11.6, "D": 11.6, "E": 10.7,
+    "F": 9.8,  "G": 12.4, "H": 11.6, "I": 4.4,  "J": 8.0,
+    "K": 10.7, "L": 8.9,  "M": 13.3, "N": 11.6, "O": 12.4,
+    "P": 10.7, "Q": 12.4, "R": 11.6, "S": 10.7, "T": 9.8,
+    "U": 11.6, "V": 10.7, "W": 15.1, "X": 10.7, "Y": 10.7,
+    "Z": 9.8,
+    "[": 4.4, "\\": 4.4, "]": 4.4, "^": 7.5, "_": 8.9, "`": 5.3,
+    "a": 8.9, "b": 8.9, "c": 8.0, "d": 8.9, "e": 8.9,
+    "f": 4.2, "g": 8.9, "h": 8.9, "i": 3.6, "j": 3.6,
+    "k": 8.0, "l": 3.6, "m": 13.3, "n": 8.9, "o": 8.9,
+    "p": 8.9, "q": 8.9, "r": 5.3, "s": 8.0, "t": 4.4,
+    "u": 8.9, "v": 8.0, "w": 11.6, "x": 8.0, "y": 8.0, "z": 8.0,
+    "{": 5.3, "|": 4.2, "}": 5.3, "~": 9.3,
+}
+_FALLBACK_CHAR_WIDTH_16PX: float = 8.9  # median advance width for unknown characters
 
-    Uses a rough heuristic of 0.6 * font_size per character, plus a small pad.
+
+def _estimate_label_width_px(labels, font_size):
+    """Estimate the right-margin width (px) needed to display line labels.
+
+    Uses per-character advance widths (Helvetica/Arial proportions at 16px, scaled
+    to font_size) so that short labels like 'EU' — where every character is a wide
+    capital — are not underestimated by a flat per-character factor.
+
+    The returned value covers: xshift gap (6px) + text width + trailing breathing
+    room (10px).
     """
     if not labels:
         return 0
-    max_chars = max(len(lbl) for lbl in labels)
-    return int(max_chars * font_size * 0.6) + 10
+    # Labels are drawn at font_size - 1
+    render_size = font_size - 1
+    scale = render_size / 16.0
+    longest_px = max(
+        sum(_CHAR_WIDTHS_16PX.get(ch, _FALLBACK_CHAR_WIDTH_16PX) for ch in lbl)
+        for lbl in labels
+    )
+    text_px = longest_px * scale
+    # xshift=8 is hardcoded in the annotation; trailing gap = 12px
+    return int(text_px) + 8 + 12
+
+
+def _estimate_legend_h_px(labels: list[str], font_size: int, chart_w_px: float) -> int:
+    """Estimate the pixel height of a horizontal Plotly legend.
+
+    Greedily packs legend items left-to-right within chart_w_px, counting rows.
+    Each item = 30px line marker + text width + 10px inter-item gap.
+    Row height is empirically font_size * 2 (≈28px at size 14).
+    """
+    if not labels:
+        return 0
+    legend_font = font_size - 1
+    scale = legend_font / 16.0
+
+    item_widths = [
+        _LEGEND_MARKER_PX + int(
+            sum(_CHAR_WIDTHS_16PX.get(ch, _FALLBACK_CHAR_WIDTH_16PX) for ch in lbl) * scale
+        ) + _LEGEND_ITEM_GAP_PX
+        for lbl in labels
+    ]
+
+    num_rows, row_w = 1, 0
+    for w in item_widths:
+        if row_w + w > chart_w_px and row_w > 0:
+            num_rows += 1
+            row_w = w
+        else:
+            row_w += w
+
+    row_h = font_size * 2
+    return num_rows * row_h
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +569,7 @@ def _estimate_label_width_px(labels, font_size):
 
 def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
     """Draw the FT-style accent line at the top of a plotly figure."""
-    accent_y = 1 + (m.top_space_px - 12) / m.chart_h_px
+    accent_y = 1 + (m.top_space_px - m.accent_top_px) / m.chart_h_px
     accent_x0 = m.left_align_x_plotly
     accent_x1 = accent_x0 + ACCENT_LINE_LENGTH / m.chart_w_px
     fig.add_shape(
@@ -455,30 +581,41 @@ def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
 
 
 def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
-    """Add title/subtitle to plotly layout kwargs."""
+    """Add title/subtitle to plotly layout kwargs.
+
+    The main title uses layout.title with container coords so yanchor='top'
+    anchors at the true top of the title text.  The subtitle is drawn as a
+    separate annotation positioned directly below the title in paper space,
+    giving us pixel-precise control and avoiding Plotly's native subtitle
+    1.6em hardcoded gap.
+    """
     if not m.title_main and not m.title_sub:
         return
 
-    parts = []
-    if m.title_main:
-        parts.append(f"<b>{m.title_main}</b>")
-    if m.title_sub:
-        sub_size = m.font_size + 2
-        parts.append(
-            f"<span style='font-size:{sub_size}px; font-weight:normal'>{m.title_sub}</span>"
-        )
-
-    # Align title with y-axis labels (left margin area)
-    title_x = m.left_margin_px * 0.1 / m.total_w_px
-    # 3px pad + accent + gap = ~40px from top
-    title_y = 1 - 40 / m.total_h_px
+    # Main title — container coords (1 = figure top, 0 = figure bottom).
+    title_x = MASTER_SPACING_PX / m.total_w_px
+    title_y = 1 - m.title_top_px / m.total_h_px
 
     layout_kwargs["title"] = dict(
-        text="<br>".join(parts),
+        text=f"<b>{m.title_main}</b>" if m.title_main else "",
         x=title_x, xanchor="left",
         y=title_y, yanchor="top",
+        xref="container", yref="container",
         font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
     )
+
+    # Subtitle — annotation placed immediately below the title in paper space.
+    if m.title_sub:
+        sub_top_px = m.title_top_px + m._title_line_h_px   # px from figure top
+        sub_y = 1 + (m.top_space_px - sub_top_px) / m.chart_h_px
+        fig.add_annotation(
+            text=m.title_sub,
+            x=m.left_align_x_plotly, y=sub_y,
+            xref="paper", yref="paper",
+            xanchor="left", yanchor="top",
+            showarrow=False,
+            font=dict(size=m.font_size + 2, color=FT_FONT_COLOR, family=m.font_family),
+        )
 
 
 def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
@@ -490,7 +627,7 @@ def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
         x=m.left_align_x_plotly, y=0,
         xref="paper", yref="paper",
         xanchor="left", yanchor="top",
-        yshift=-(m.bottom_space_px - m.pad_bottom_px),
+        yshift=-m.pad_bottom_px,
         showarrow=False,
         font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
     )
@@ -703,12 +840,12 @@ def _draw_line_labels_plotly(fig, df, cols, display_names, font_size, m):
     for i, (dname, _last_y, color) in enumerate(entries):
         y = nudged[i]
         fig.add_annotation(
-            text=f"<b>{dname}</b>",
+            text=dname,
             x=1, xref="paper",
             y=y, yref="y",
             xanchor="left",
             yanchor="middle",
-            xshift=6,
+            xshift=8,
             showarrow=False,
             font=dict(size=font_size - 1, color=color),
         )
@@ -826,15 +963,21 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     use_labels = labels and not is_dual
 
     # Compute dynamic right margin for line labels
+    _font_size = font.get("size", DEFAULT_FONT_SIZE) if font else DEFAULT_FONT_SIZE
     labels_margin_px = 0
     if use_labels:
-        _font_size = font.get("size", DEFAULT_FONT_SIZE) if font else DEFAULT_FONT_SIZE
         display_label_names = [_get_display_name(c, display_names) for c in left_cols]
         labels_margin_px = _estimate_label_width_px(display_label_names, _font_size)
 
+    # Legend labels for multi-row height estimation
+    legend_labels = None
+    if not use_labels:
+        legend_labels = [_get_display_name(c, display_names) for c in left_cols + right_cols]
+
     m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual,
                                   labels_margin_px=labels_margin_px,
-                                  use_labels=use_labels)
+                                  use_labels=use_labels, idx=df.index,
+                                  legend_labels=legend_labels)
 
     if is_dual:
         from plotly.subplots import make_subplots
@@ -851,7 +994,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     )
 
     sorted_left = _sorted_cols_by_last_value(df, left_cols)
-    for col in sorted_left:
+    for i, col in enumerate(sorted_left):
         name = _get_display_name(col, display_names)
         trace_kwargs = dict(
             x=df.index, y=df[col], mode="lines",
@@ -861,6 +1004,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             trace_kwargs["line"] = dict(color=LEFT_COLOR)
             fig.add_trace(go.Scatter(**trace_kwargs), secondary_y=False)
         else:
+            trace_kwargs["line"] = dict(color=pxts_COLORS[i % len(pxts_COLORS)])
             fig.add_trace(go.Scatter(**trace_kwargs))
 
     if is_dual:
@@ -892,6 +1036,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
             hoverformat=date_fmt,
             showspikes=True, spikemode="across", spikesnap="cursor",
             spikedash="dot", spikethickness=1, spikecolor="#999999",
+            automargin=True,
         ),
         hoverlabel=dict(
             bgcolor="white",
@@ -919,7 +1064,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     else:
         layout_kwargs["legend"] = dict(
             orientation="h",
-            x=0, y=0.95,
+            x=0, y=1,
             xanchor="left", yanchor="bottom",
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
