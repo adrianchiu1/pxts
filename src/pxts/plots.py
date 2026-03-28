@@ -37,6 +37,7 @@ from pxts.theme import (
     ACCENT_LINE_LENGTH,
     DEFAULT_CHART_WIDTH,
     DEFAULT_ASPECT_RATIO,
+    LEFT_CHROME_PX,
 )
 
 # ---------------------------------------------------------------------------
@@ -374,8 +375,8 @@ class LayoutMetrics:
 
     @property
     def left_align_x_plotly(self) -> float:
-        """X coordinate in plotly paper space that aligns with y-axis labels."""
-        return -(self.left_margin_px * 0.85) / self.chart_w_px
+        """X in plotly paper space corresponding to LEFT_CHROME_PX from the figure left."""
+        return (LEFT_CHROME_PX - self.left_margin_px) / self.chart_w_px
 
 
 # ---------------------------------------------------------------------------
@@ -528,8 +529,8 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
             f"<span style='font-size:{sub_size}px; font-weight:normal'>{m.title_sub}</span>"
         )
 
-    # Align title with y-axis labels (left margin area)
-    title_x = m.left_margin_px * 0.1 / m.total_w_px
+    # LEFT_CHROME_PX from figure left; title uses container coords (0=fig left, 1=fig right)
+    title_x = LEFT_CHROME_PX / m.total_w_px
     # 3px pad + accent + gap = ~40px from top
     title_y = 1 - 40 / m.total_h_px
 
