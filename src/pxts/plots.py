@@ -375,16 +375,13 @@ class LayoutMetrics:
 
     @property
     def title_top_px(self) -> float:
-        """Pixels from figure top to the title anchor point.
+        """Pixels from figure top to the top of the title text block.
 
-        Base offset (MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH) positions the
-        visual top of the text just below the accent line.  Adding half the
-        combined title+subtitle height compensates for Plotly anchoring
-        yanchor='top' at the middle of the text block rather than its true
-        top edge.
+        With yanchor='top', Plotly anchors to the true top of the bounding box,
+        so no compensation for text height is needed.  The base offset places
+        the title MASTER_SPACING_PX below the bottom edge of the accent line.
         """
-        base = MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH
-        return base + (self.title_h_px + self.sub_h_px) / 2
+        return MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH
 
     @property
     def left_align_x_plotly(self) -> float:
