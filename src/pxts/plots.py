@@ -47,6 +47,12 @@ from pxts.theme import (
 LEFT_COLOR: str = pxts_COLORS[0]   # '#0072B2' Blue
 RIGHT_COLOR: str = pxts_COLORS[1]  # '#D55E00' Vermillion
 
+# Layout constants used in chrome-element sizing and positioning
+_LINE_HEIGHT: float = 1.2        # typographic line-height multiplier for font height estimates
+_TITLE_EXTRA_GAP_PX: int = 5     # extra px added on top of MASTER_SPACING_PX for accent→title gap
+_LEGEND_MARKER_PX: int = 30      # width of a Plotly horizontal-legend line marker
+_LEGEND_ITEM_GAP_PX: int = 10    # horizontal gap between legend items
+
 
 def _estimate_xaxis_pad_px(idx: pd.DatetimeIndex, font_size: int) -> int:
     """Estimate pixels needed for x-axis tick labels based on data frequency.
@@ -274,8 +280,7 @@ class LayoutMetrics:
     Plotly uses pixel values directly.
 
     The vertical layout (top to bottom) is:
-        accent_top_px | accent line | accent_gap_px | title | subtitle |
-        legend_gap_px | legend | chart area | source | pad_bottom_px
+        accent_top_px | accent line | title | subtitle | legend | chart area | source | pad_bottom_px
     """
     # Resolved chart parameters
     chart_w_px: float
@@ -288,11 +293,9 @@ class LayoutMetrics:
 
     # Vertical spacing (pixels at 100 DPI)
     accent_top_px: float = MASTER_SPACING_PX + 1.5  # figure top → accent line centre
-    accent_gap_px: float = 6
     title_h_px: float = 0       # 0 when no title
     sub_h_px: float = 0         # 0 when no subtitle
     legend_h_px: float = 28
-    legend_gap_px: float = 6
     source_h_px: float = 0      # 0 when no source
     pad_bottom_px: float = 45   # room for x-axis tick labels
 
@@ -353,26 +356,35 @@ class LayoutMetrics:
             source_h_px=(MASTER_SPACING_PX + font_size * 1.5 - 1) if source_text else 0,
             right_margin_px=right_margin,
             legend_h_px=0 if use_labels else _estimate_legend_h_px(legend_labels or [], font_size, w),
-            legend_gap_px=0 if use_labels else 6,
             pad_bottom_px=pad_bottom,
         )
 
     @property
+    def title_top_px(self) -> float:
+        """Pixels from figure top to the top of the title text (yanchor='top' true-top anchor)."""
+        return MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH + _TITLE_EXTRA_GAP_PX
+
+    @property
+    def _title_line_h_px(self) -> int:
+        return round((self.font_size + 6) * _LINE_HEIGHT)
+
+    @property
+    def _sub_line_h_px(self) -> int:
+        return round((self.font_size + 2) * _LINE_HEIGHT)
+
+    @property
     def _accent_title_gap_px(self) -> float:
-        """Gap between accent line bottom and title top (= desired gap between chrome elements)."""
+        """Consistent chrome gap: accent-bottom → title-top, reused for title/sub → legend."""
         return self.title_top_px - (self.accent_top_px + ACCENT_LINE_WIDTH / 2)
 
     @property
     def _last_chrome_bottom_px(self) -> float:
         """Estimated pixel position of the bottom of the last visible title/subtitle line."""
-        title_line_h = round((self.font_size + 6) * 1.2)
-        if self.sub_h_px > 0:
-            sub_line_h = round((self.font_size + 2) * 1.2)
-            return self.title_top_px + title_line_h + sub_line_h
-        elif self.title_h_px > 0:
-            return self.title_top_px + title_line_h
-        else:
-            return self.accent_top_px + ACCENT_LINE_WIDTH
+        if self.title_sub:
+            return self.title_top_px + self._title_line_h_px + self._sub_line_h_px
+        if self.title_main:
+            return self.title_top_px + self._title_line_h_px
+        return self.accent_top_px + ACCENT_LINE_WIDTH
 
     @property
     def legend_top_px(self) -> float:
@@ -394,16 +406,6 @@ class LayoutMetrics:
     @property
     def total_h_px(self) -> float:
         return self.chart_h_px + self.top_space_px + self.bottom_space_px
-
-    @property
-    def title_top_px(self) -> float:
-        """Pixels from figure top to the top of the title text block.
-
-        With yanchor='top', Plotly anchors to the true top of the bounding box,
-        so no compensation for text height is needed.  The base offset places
-        the title MASTER_SPACING_PX below the bottom edge of the accent line.
-        """
-        return MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH + 5
 
     @property
     def left_align_x_plotly(self) -> float:
@@ -536,14 +538,12 @@ def _estimate_legend_h_px(labels: list[str], font_size: int, chart_w_px: float) 
     if not labels:
         return 0
     legend_font = font_size - 1
-    scale = (legend_font - 1) / 16.0
-    MARKER_PX = 30
-    GAP_PX = 10
+    scale = legend_font / 16.0
 
     item_widths = [
-        MARKER_PX + int(
+        _LEGEND_MARKER_PX + int(
             sum(_CHAR_WIDTHS_16PX.get(ch, _FALLBACK_CHAR_WIDTH_16PX) for ch in lbl) * scale
-        ) + GAP_PX
+        ) + _LEGEND_ITEM_GAP_PX
         for lbl in labels
     ]
 
@@ -606,11 +606,7 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
 
     # Subtitle — annotation placed immediately below the title in paper space.
     if m.title_sub:
-        # Use the actual title font's line height (1.2em) rather than the
-        # reserved margin space (title_h_px), which is larger than the rendered text.
-        title_line_h_px = round((m.font_size + 6) * 1.2)
-        sub_top_px = m.title_top_px + title_line_h_px   # px from figure top
-        # Paper y=1 is the plot-area top; above it is y > 1.
+        sub_top_px = m.title_top_px + m._title_line_h_px   # px from figure top
         sub_y = 1 + (m.top_space_px - sub_top_px) / m.chart_h_px
         fig.add_annotation(
             text=m.title_sub,
