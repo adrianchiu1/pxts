@@ -457,15 +457,13 @@ def _estimate_label_width_px(labels, font_size):
     to font_size) so that short labels like 'EU' — where every character is a wide
     capital — are not underestimated by a flat per-character factor.
 
-    A bold factor of 1.1 is applied because labels are rendered in bold.
-
     The returned value covers: xshift gap (6px) + text width + trailing breathing
     room (10px).
     """
     if not labels:
         return 0
-    # Labels are drawn at font_size - 1 in bold (~10% wider than regular)
-    render_size = (font_size - 1) * 1.1
+    # Labels are drawn at font_size - 1
+    render_size = font_size - 1
     scale = render_size / 16.0
     longest_px = max(
         sum(_CHAR_WIDTHS_16PX.get(ch, _FALLBACK_CHAR_WIDTH_16PX) for ch in lbl)
@@ -746,7 +744,7 @@ def _draw_line_labels_plotly(fig, df, cols, display_names, font_size, m):
     for i, (dname, _last_y, color) in enumerate(entries):
         y = nudged[i]
         fig.add_annotation(
-            text=f"<b>{dname}</b>",
+            text=dname,
             x=1, xref="paper",
             y=y, yref="y",
             xanchor="left",
