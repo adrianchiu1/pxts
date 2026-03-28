@@ -551,7 +551,10 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
 
     # Subtitle — annotation placed immediately below the title in paper space.
     if m.title_sub:
-        sub_top_px = m.title_top_px + m.title_h_px   # px from figure top
+        # Use the actual title font's line height (1.2em) rather than the
+        # reserved margin space (title_h_px), which is larger than the rendered text.
+        title_line_h_px = round((m.font_size + 6) * 1.2)
+        sub_top_px = m.title_top_px + title_line_h_px   # px from figure top
         # Paper y=1 is the plot-area top; above it is y > 1.
         sub_y = 1 + (m.top_space_px - sub_top_px) / m.chart_h_px
         fig.add_annotation(
