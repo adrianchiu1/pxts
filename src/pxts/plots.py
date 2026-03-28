@@ -289,7 +289,6 @@ class LayoutMetrics:
     # Vertical spacing (pixels at 100 DPI)
     pad_top_px: float = MASTER_SPACING_PX
     accent_gap_px: float = 6
-    title_top_px: float = MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH
     title_h_px: float = 0       # 0 when no title
     sub_h_px: float = 0         # 0 when no subtitle
     legend_h_px: float = 28
@@ -373,6 +372,19 @@ class LayoutMetrics:
     @property
     def total_h_px(self) -> float:
         return self.chart_h_px + self.top_space_px + self.bottom_space_px
+
+    @property
+    def title_top_px(self) -> float:
+        """Pixels from figure top to the title anchor point.
+
+        Base offset (MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH) positions the
+        visual top of the text just below the accent line.  Adding half the
+        combined title+subtitle height compensates for Plotly anchoring
+        yanchor='top' at the middle of the text block rather than its true
+        top edge.
+        """
+        base = MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH
+        return base + (self.title_h_px + self.sub_h_px) / 2
 
     @property
     def left_align_x_plotly(self) -> float:
