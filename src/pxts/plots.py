@@ -528,31 +528,40 @@ def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
 def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
     """Add title/subtitle to plotly layout kwargs.
 
-    Uses the Plotly 6 native subtitle field rather than a <br>-joined string so
-    that yanchor='top' anchors at the true top of the title line, not the centre
-    of a combined multi-line block.
+    The main title uses layout.title with container coords so yanchor='top'
+    anchors at the true top of the title text.  The subtitle is drawn as a
+    separate annotation positioned directly below the title in paper space,
+    giving us pixel-precise control and avoiding Plotly's native subtitle
+    1.6em hardcoded gap.
     """
     if not m.title_main and not m.title_sub:
         return
 
-    # Container coords: 1=figure top, 0=figure bottom; xref/yref must be explicit.
+    # Main title — container coords (1 = figure top, 0 = figure bottom).
     title_x = MASTER_SPACING_PX / m.total_w_px
     title_y = 1 - m.title_top_px / m.total_h_px
 
-    title_dict = dict(
+    layout_kwargs["title"] = dict(
         text=f"<b>{m.title_main}</b>" if m.title_main else "",
         x=title_x, xanchor="left",
         y=title_y, yanchor="top",
         xref="container", yref="container",
         font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
     )
-    if m.title_sub:
-        title_dict["subtitle"] = dict(
-            text=m.title_sub,
-            font=dict(color=FT_FONT_COLOR, size=m.font_size + 2, family=m.font_family),
-        )
 
-    layout_kwargs["title"] = title_dict
+    # Subtitle — annotation placed immediately below the title in paper space.
+    if m.title_sub:
+        sub_top_px = m.title_top_px + m.title_h_px   # px from figure top
+        # Paper y=1 is the plot-area top; above it is y > 1.
+        sub_y = 1 + (m.top_space_px - sub_top_px) / m.chart_h_px
+        fig.add_annotation(
+            text=m.title_sub,
+            x=m.left_align_x_plotly, y=sub_y,
+            xref="paper", yref="paper",
+            xanchor="left", yanchor="top",
+            showarrow=False,
+            font=dict(size=m.font_size + 2, color=FT_FONT_COLOR, family=m.font_family),
+        )
 
 
 def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
