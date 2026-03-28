@@ -381,7 +381,7 @@ class LayoutMetrics:
         so no compensation for text height is needed.  The base offset places
         the title MASTER_SPACING_PX below the bottom edge of the accent line.
         """
-        return MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH
+        return MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH + 5
 
     @property
     def left_align_x_plotly(self) -> float:
