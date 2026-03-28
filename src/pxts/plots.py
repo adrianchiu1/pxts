@@ -302,7 +302,8 @@ class LayoutMetrics:
 
     @classmethod
     def from_params(cls, dimension, font, title, source, *, is_dual: bool = False,
-                    labels_margin_px: int = 0, use_labels: bool = False, idx=None):
+                    labels_margin_px: int = 0, use_labels: bool = False, idx=None,
+                    legend_labels: list | None = None):
         """Build LayoutMetrics from user-facing parameter dicts."""
         if dimension:
             w = dimension.get("width", DEFAULT_CHART_WIDTH)
@@ -351,7 +352,7 @@ class LayoutMetrics:
             sub_h_px=24 if title_sub else 0,
             source_h_px=(MASTER_SPACING_PX + font_size * 1.5 - 1) if source_text else 0,
             right_margin_px=right_margin,
-            legend_h_px=0 if use_labels else 28,
+            legend_h_px=0 if use_labels else _estimate_legend_h_px(legend_labels or [], font_size, w),
             legend_gap_px=0 if use_labels else 6,
             pad_bottom_px=pad_bottom,
         )
@@ -502,6 +503,39 @@ def _estimate_label_width_px(labels, font_size):
     text_px = longest_px * scale
     # xshift=8 is hardcoded in the annotation; trailing gap = 12px
     return int(text_px) + 8 + 12
+
+
+def _estimate_legend_h_px(labels: list[str], font_size: int, chart_w_px: float) -> int:
+    """Estimate the pixel height of a horizontal Plotly legend.
+
+    Greedily packs legend items left-to-right within chart_w_px, counting rows.
+    Each item = 30px line marker + text width + 10px inter-item gap.
+    Row height is empirically font_size * 2 (≈28px at size 14).
+    """
+    if not labels:
+        return 0
+    legend_font = font_size - 1
+    scale = (legend_font - 1) / 16.0
+    MARKER_PX = 30
+    GAP_PX = 10
+
+    item_widths = [
+        MARKER_PX + int(
+            sum(_CHAR_WIDTHS_16PX.get(ch, _FALLBACK_CHAR_WIDTH_16PX) for ch in lbl) * scale
+        ) + GAP_PX
+        for lbl in labels
+    ]
+
+    num_rows, row_w = 1, 0
+    for w in item_widths:
+        if row_w + w > chart_w_px and row_w > 0:
+            num_rows += 1
+            row_w = w
+        else:
+            row_w += w
+
+    row_h = font_size * 2
+    return num_rows * row_h
 
 
 # ---------------------------------------------------------------------------
@@ -912,15 +946,21 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     use_labels = labels and not is_dual
 
     # Compute dynamic right margin for line labels
+    _font_size = font.get("size", DEFAULT_FONT_SIZE) if font else DEFAULT_FONT_SIZE
     labels_margin_px = 0
     if use_labels:
-        _font_size = font.get("size", DEFAULT_FONT_SIZE) if font else DEFAULT_FONT_SIZE
         display_label_names = [_get_display_name(c, display_names) for c in left_cols]
         labels_margin_px = _estimate_label_width_px(display_label_names, _font_size)
 
+    # Legend labels for multi-row height estimation
+    legend_labels = None
+    if not use_labels:
+        legend_labels = [_get_display_name(c, display_names) for c in left_cols + right_cols]
+
     m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual,
                                   labels_margin_px=labels_margin_px,
-                                  use_labels=use_labels, idx=df.index)
+                                  use_labels=use_labels, idx=df.index,
+                                  legend_labels=legend_labels)
 
     if is_dual:
         from plotly.subplots import make_subplots
