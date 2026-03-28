@@ -71,6 +71,9 @@ DEFAULT_ASPECT_RATIO: float = 1.5
 # Accent line: short bar at top-left (pixels)
 ACCENT_LINE_LENGTH: int = 60
 
+# Inner padding between the plot area border and the data (pixels)
+PLOT_AREA_PAD_PX: int = 20
+
 
 # ---------------------------------------------------------------------------
 # Backend-specific theme application

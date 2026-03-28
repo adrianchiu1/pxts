@@ -37,6 +37,7 @@ from pxts.theme import (
     ACCENT_LINE_LENGTH,
     DEFAULT_CHART_WIDTH,
     DEFAULT_ASPECT_RATIO,
+    PLOT_AREA_PAD_PX,
 )
 
 # ---------------------------------------------------------------------------
@@ -1005,6 +1006,28 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
                 title_font=dict(color=LEFT_COLOR),
                 secondary_y=False,
             )
+
+    # Inner padding: expand the y-axis range by PLOT_AREA_PAD_PX on each side so
+    # data never touches the top or bottom of the plot area. Only applied when the
+    # caller has not supplied an explicit range (which would override this anyway).
+    def _padded_range(cols, pad_px):
+        vals = df[cols].values.flatten()
+        vals = vals[~pd.isna(vals)]
+        if len(vals) == 0:
+            return None
+        y_min, y_max = float(vals.min()), float(vals.max())
+        span = y_max - y_min if y_max != y_min else max(abs(y_max), 1.0)
+        pad = span * pad_px / m.chart_h_px
+        return [y_min - pad, y_max + pad]
+
+    if not (yaxis and yaxis.get("range")):
+        r = _padded_range(left_cols, PLOT_AREA_PAD_PX)
+        if r:
+            fig.update_layout(yaxis=dict(range=r))
+    if is_dual and not (yaxis2 and yaxis2.get("range")):
+        r2 = _padded_range(right_cols, PLOT_AREA_PAD_PX)
+        if r2:
+            fig.update_yaxes(range=r2, secondary_y=True)
 
     if yaxis and yaxis.get("range"):
         fig.update_layout(yaxis=dict(range=list(yaxis["range"])))
