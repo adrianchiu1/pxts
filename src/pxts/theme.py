@@ -71,9 +71,10 @@ DEFAULT_ASPECT_RATIO: float = 1.5
 # Accent line: short bar at top-left (pixels)
 ACCENT_LINE_LENGTH: int = 60
 
-# Horizontal offset (px from figure left) shared by all left-edge chrome:
-# accent line, title/subtitle, source line.
-LEFT_CHROME_PX: int = 10
+# Master spacing constant (px): used for all chrome element offsets —
+# horizontal distance from figure left to accent line / title / source,
+# and can anchor vertical gaps for consistency.
+MASTER_SPACING_PX: int = 10
 
 
 # ---------------------------------------------------------------------------
