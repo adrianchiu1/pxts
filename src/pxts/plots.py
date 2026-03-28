@@ -526,30 +526,33 @@ def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
 
 
 def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
-    """Add title/subtitle to plotly layout kwargs."""
+    """Add title/subtitle to plotly layout kwargs.
+
+    Uses the Plotly 6 native subtitle field rather than a <br>-joined string so
+    that yanchor='top' anchors at the true top of the title line, not the centre
+    of a combined multi-line block.
+    """
     if not m.title_main and not m.title_sub:
         return
 
-    parts = []
-    if m.title_main:
-        parts.append(f"<b>{m.title_main}</b>")
-    if m.title_sub:
-        sub_size = m.font_size + 2
-        parts.append(
-            f"<span style='font-size:{sub_size}px; font-weight:normal'>{m.title_sub}</span>"
-        )
-
-    # MASTER_SPACING_PX from figure left; title uses container coords (0=fig left, 1=fig right)
+    # Container coords: 1=figure top, 0=figure bottom; xref/yref must be explicit.
     title_x = MASTER_SPACING_PX / m.total_w_px
-    # title_top_px below the figure top (container coords: 1=fig top, 0=fig bottom)
     title_y = 1 - m.title_top_px / m.total_h_px
 
-    layout_kwargs["title"] = dict(
-        text="<br>".join(parts),
+    title_dict = dict(
+        text=f"<b>{m.title_main}</b>" if m.title_main else "",
         x=title_x, xanchor="left",
         y=title_y, yanchor="top",
+        xref="container", yref="container",
         font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
     )
+    if m.title_sub:
+        title_dict["subtitle"] = dict(
+            text=m.title_sub,
+            font=dict(color=FT_FONT_COLOR, size=m.font_size + 2, family=m.font_family),
+        )
+
+    layout_kwargs["title"] = title_dict
 
 
 def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
