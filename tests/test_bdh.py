@@ -142,3 +142,61 @@ class TestReadBdh:
         assert isinstance(df.index, pd.DatetimeIndex)
         # validate_ts is called internally — if it raised, we'd never reach here
         assert df.index.dtype.kind == "M"  # 'M' = datetime64
+
+    def test_dict_tickers_renames_columns(self):
+        """Dict tickers: columns are renamed to dict keys in the correct order."""
+        tickers_dict = {"Apple": "AAPL US Equity", "Microsoft": "MSFT US Equity"}
+        mock_pdblp, mock_con = _make_mock_pdblp(
+            _make_bdh_response(
+                list(tickers_dict.values()),
+                "PX_LAST",
+                ["2024-01-02", "2024-01-03"],
+            )
+        )
+        with patch.dict(sys.modules, {"pdblp": mock_pdblp}):
+            df = read_bdh(tickers_dict, "20240101")
+
+        assert list(df.columns) == ["Apple", "Microsoft"]
+        assert isinstance(df.index, pd.DatetimeIndex)
+
+    def test_dict_tickers_passes_bloomberg_tickers_to_bdh(self):
+        """Dict tickers: Bloomberg ticker values (not keys) are forwarded to BCon.bdh()."""
+        tickers_dict = {"Apple": "AAPL US Equity", "Microsoft": "MSFT US Equity"}
+        mock_pdblp, mock_con = _make_mock_pdblp(
+            _make_bdh_response(
+                list(tickers_dict.values()),
+                "PX_LAST",
+                ["2024-01-02"],
+            )
+        )
+        with patch.dict(sys.modules, {"pdblp": mock_pdblp}):
+            read_bdh(tickers_dict, "20240101")
+
+        call_args = mock_con.bdh.call_args
+        tickers_arg = call_args[0][0]
+        assert tickers_arg == ["AAPL US Equity", "MSFT US Equity"]
+
+    def test_dict_single_ticker_renamed(self):
+        """Dict with one entry: single column renamed correctly."""
+        tickers_dict = {"Apple": "AAPL US Equity"}
+        mock_pdblp, mock_con = _make_mock_pdblp(
+            _make_bdh_response(["AAPL US Equity"], "PX_LAST", ["2024-01-02"])
+        )
+        with patch.dict(sys.modules, {"pdblp": mock_pdblp}):
+            df = read_bdh(tickers_dict, "20240101")
+
+        assert list(df.columns) == ["Apple"]
+
+    def test_dict_values_correct_data_mapping(self):
+        """Dict tickers: data values map to the correct renamed columns."""
+        tickers_dict = {"Apple": "AAPL US Equity", "Microsoft": "MSFT US Equity"}
+        dates = ["2024-01-02", "2024-01-03"]
+        raw = _make_bdh_response(list(tickers_dict.values()), "PX_LAST", dates)
+        mock_pdblp, mock_con = _make_mock_pdblp(raw)
+
+        with patch.dict(sys.modules, {"pdblp": mock_pdblp}):
+            df = read_bdh(tickers_dict, "20240101")
+
+        # AAPL is ticker index 0: values are [0.0, 1.0]; MSFT is index 1: [1.0, 2.0]
+        assert list(df["Apple"]) == [0.0, 1.0]
+        assert list(df["Microsoft"]) == [1.0, 2.0]

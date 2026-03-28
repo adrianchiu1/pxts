@@ -190,8 +190,11 @@ def read_bdh(
 
     Parameters
     ----------
-    tickers : list of str
+    tickers : list of str, str, or dict
         Bloomberg ticker strings, e.g. ['AAPL US Equity', 'MSFT US Equity'].
+        If a dict is provided, keys are the desired output column names and
+        values are the Bloomberg tickers, e.g.
+        {'Apple': 'AAPL US Equity', 'Microsoft': 'MSFT US Equity'}.
     start : str, datetime, or pd.Timestamp
         Start date (inclusive). Defaults to '2000-01-01'. Converted to 'YYYYMMDD' string internally.
     field : str
@@ -203,7 +206,8 @@ def read_bdh(
     -------
     pd.DataFrame
         Wide-format DataFrame with DatetimeIndex (rows = dates,
-        columns = Bloomberg ticker strings).
+        columns = Bloomberg ticker strings, or renamed columns when tickers
+        is a dict).
 
     Raises
     ------
@@ -219,8 +223,14 @@ def read_bdh(
             "pdblp required for read_bdh(). Install with: pip install pdblp and https://www.bloomberg.com/professional/support/api-library/"
         )
 
-    if isinstance(tickers, str):
-        tickers = [tickers]
+    if isinstance(tickers, dict):
+        rename_map = tickers  # {new_name: bloomberg_ticker}
+        ticker_list = list(tickers.values())
+    else:
+        rename_map = None
+        if isinstance(tickers, str):
+            tickers = [tickers]
+        ticker_list = tickers
 
     start_date = pd.to_datetime(start).strftime("%Y%m%d")
     if end is None:
@@ -234,12 +244,16 @@ def read_bdh(
 
     # Get historical data for securities and fields
     try:
-        raw = con.bdh(tickers, field, start_date, end_date)
+        raw = con.bdh(ticker_list, field, start_date, end_date)
     finally:
         con.stop()
 
-    data = raw.loc[:,tickers]
-    data.columns = tickers
+    data = raw.loc[:, ticker_list]
+    data.columns = ticker_list
     data.index = pd.to_datetime(data.index)
+
+    if rename_map is not None:
+        # rename_map is {new_name: bloomberg_ticker}; invert for DataFrame.rename
+        data = data.rename(columns={v: k for k, v in rename_map.items()})
 
     return validate_ts(data)
