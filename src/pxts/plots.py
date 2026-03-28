@@ -422,15 +422,58 @@ def _nudge_label_positions(y_positions, min_gap):
     return {idx: y for idx, y in items}
 
 
-def _estimate_label_width_px(labels, font_size):
-    """Estimate the pixel width of the longest label string.
+# Per-character advance widths for a proportional sans-serif (Helvetica/Arial metrics,
+# measured at 16px). Scaled linearly to actual font_size at render time.
+# Covers the printable ASCII range; anything outside falls back to the median width.
+_CHAR_WIDTHS_16PX: dict[str, float] = {
+    " ": 4.4, "!": 4.4, '"': 5.7, "#": 8.9, "$": 8.9, "%": 14.2,
+    "&": 10.7, "'": 3.1, "(": 5.3, ")": 5.3, "*": 6.2, "+": 9.3,
+    ",": 4.4, "-": 5.3, ".": 4.4, "/": 4.4,
+    "0": 8.9, "1": 7.7, "2": 8.9, "3": 8.9, "4": 8.9,
+    "5": 8.9, "6": 8.9, "7": 8.9, "8": 8.9, "9": 8.9,
+    ":": 4.4, ";": 4.4, "<": 9.3, "=": 9.3, ">": 9.3,
+    "?": 8.9, "@": 16.2,
+    "A": 10.7, "B": 10.7, "C": 11.6, "D": 11.6, "E": 10.7,
+    "F": 9.8,  "G": 12.4, "H": 11.6, "I": 4.4,  "J": 8.0,
+    "K": 10.7, "L": 8.9,  "M": 13.3, "N": 11.6, "O": 12.4,
+    "P": 10.7, "Q": 12.4, "R": 11.6, "S": 10.7, "T": 9.8,
+    "U": 11.6, "V": 10.7, "W": 15.1, "X": 10.7, "Y": 10.7,
+    "Z": 9.8,
+    "[": 4.4, "\\": 4.4, "]": 4.4, "^": 7.5, "_": 8.9, "`": 5.3,
+    "a": 8.9, "b": 8.9, "c": 8.0, "d": 8.9, "e": 8.9,
+    "f": 4.2, "g": 8.9, "h": 8.9, "i": 3.6, "j": 3.6,
+    "k": 8.0, "l": 3.6, "m": 13.3, "n": 8.9, "o": 8.9,
+    "p": 8.9, "q": 8.9, "r": 5.3, "s": 8.0, "t": 4.4,
+    "u": 8.9, "v": 8.0, "w": 11.6, "x": 8.0, "y": 8.0, "z": 8.0,
+    "{": 5.3, "|": 4.2, "}": 5.3, "~": 9.3,
+}
+_FALLBACK_CHAR_WIDTH_16PX: float = 8.9  # median advance width for unknown characters
 
-    Uses a rough heuristic of 0.6 * font_size per character, plus a small pad.
+
+def _estimate_label_width_px(labels, font_size):
+    """Estimate the right-margin width (px) needed to display line labels.
+
+    Uses per-character advance widths (Helvetica/Arial proportions at 16px, scaled
+    to font_size) so that short labels like 'EU' — where every character is a wide
+    capital — are not underestimated by a flat per-character factor.
+
+    A bold factor of 1.1 is applied because labels are rendered in bold.
+
+    The returned value covers: xshift gap (6px) + text width + trailing breathing
+    room (10px).
     """
     if not labels:
         return 0
-    max_chars = max(len(lbl) for lbl in labels)
-    return int(max_chars * font_size * 0.6) + 10
+    # Labels are drawn at font_size - 1 in bold (~10% wider than regular)
+    render_size = (font_size - 1) * 1.1
+    scale = render_size / 16.0
+    longest_px = max(
+        sum(_CHAR_WIDTHS_16PX.get(ch, _FALLBACK_CHAR_WIDTH_16PX) for ch in lbl)
+        for lbl in labels
+    )
+    text_px = longest_px * scale
+    # xshift=6 is hardcoded in the annotation; trailing gap = 10px
+    return int(text_px) + 6 + 10
 
 
 # ---------------------------------------------------------------------------
