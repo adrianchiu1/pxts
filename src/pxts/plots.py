@@ -289,6 +289,7 @@ class LayoutMetrics:
     # Vertical spacing (pixels at 100 DPI)
     pad_top_px: float = MASTER_SPACING_PX
     accent_gap_px: float = 6
+    title_top_px: float = MASTER_SPACING_PX * 2 + ACCENT_LINE_WIDTH
     title_h_px: float = 0       # 0 when no title
     sub_h_px: float = 0         # 0 when no subtitle
     legend_h_px: float = 28
@@ -531,8 +532,8 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
 
     # MASTER_SPACING_PX from figure left; title uses container coords (0=fig left, 1=fig right)
     title_x = MASTER_SPACING_PX / m.total_w_px
-    # 3px pad + accent + gap = ~40px from top
-    title_y = 1 - 40 / m.total_h_px
+    # title_top_px below the figure top (container coords: 1=fig top, 0=fig bottom)
+    title_y = 1 - m.title_top_px / m.total_h_px
 
     layout_kwargs["title"] = dict(
         text="<br>".join(parts),
