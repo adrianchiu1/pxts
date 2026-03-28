@@ -355,8 +355,8 @@ class LayoutMetrics:
 
     @property
     def left_align_x_plotly(self) -> float:
-        """X coordinate in plotly paper space that aligns with y-axis labels."""
-        return -(self.left_margin_px * 0.85) / self.chart_w_px
+        """X coordinate in plotly paper space 10px left of the plot area edge."""
+        return -10 / self.chart_w_px
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +484,7 @@ def _estimate_label_width_px(labels, font_size):
 
 def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
     """Draw the FT-style accent line at the top of a plotly figure."""
-    accent_y = 1 + (m.top_space_px - 12) / m.chart_h_px
+    accent_y = 1 + 10 / m.chart_h_px
     accent_x0 = m.left_align_x_plotly
     accent_x1 = accent_x0 + ACCENT_LINE_LENGTH / m.chart_w_px
     fig.add_shape(
@@ -509,8 +509,8 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
             f"<span style='font-size:{sub_size}px; font-weight:normal'>{m.title_sub}</span>"
         )
 
-    # Align title with y-axis labels (left margin area)
-    title_x = m.left_margin_px * 0.1 / m.total_w_px
+    # 10px from the plot area's left edge; title uses container coords (0=fig left, 1=fig right)
+    title_x = (m.left_margin_px - 10) / m.total_w_px
     # 3px pad + accent + gap = ~40px from top
     title_y = 1 - 40 / m.total_h_px
 
@@ -531,7 +531,7 @@ def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
         x=m.left_align_x_plotly, y=0,
         xref="paper", yref="paper",
         xanchor="left", yanchor="top",
-        yshift=-(m.bottom_space_px - m.pad_bottom_px),
+        yshift=-10,
         showarrow=False,
         font=dict(size=m.font_size - 1, color=FT_FONT_COLOR),
     )
