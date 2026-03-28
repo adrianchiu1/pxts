@@ -274,7 +274,7 @@ class LayoutMetrics:
     Plotly uses pixel values directly.
 
     The vertical layout (top to bottom) is:
-        pad_top_px | accent line | accent_gap_px | title | subtitle |
+        accent_top_px | accent line | accent_gap_px | title | subtitle |
         legend_gap_px | legend | chart area | source | pad_bottom_px
     """
     # Resolved chart parameters
@@ -287,7 +287,7 @@ class LayoutMetrics:
     source_text: Optional[str]
 
     # Vertical spacing (pixels at 100 DPI)
-    pad_top_px: float = MASTER_SPACING_PX
+    accent_top_px: float = MASTER_SPACING_PX + 1.5  # figure top → accent line centre
     accent_gap_px: float = 6
     title_h_px: float = 0       # 0 when no title
     sub_h_px: float = 0         # 0 when no subtitle
@@ -349,7 +349,7 @@ class LayoutMetrics:
             source_text=source_text,
             title_h_px=32 if title_main else 0,
             sub_h_px=24 if title_sub else 0,
-            source_h_px=(font_size - 1 + MASTER_SPACING_PX) if source_text else 0,
+            source_h_px=(MASTER_SPACING_PX + font_size * 1.5 - 1) if source_text else 0,
             right_margin_px=right_margin,
             legend_h_px=0 if use_labels else 28,
             legend_gap_px=0 if use_labels else 6,
@@ -358,7 +358,7 @@ class LayoutMetrics:
 
     @property
     def top_space_px(self) -> float:
-        return (self.pad_top_px + self.accent_gap_px + self.title_h_px
+        return (self.accent_top_px + self.accent_gap_px + self.title_h_px
                 + self.sub_h_px + self.legend_h_px + self.legend_gap_px)
 
     @property
@@ -517,7 +517,7 @@ def _estimate_label_width_px(labels, font_size):
 
 def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
     """Draw the FT-style accent line at the top of a plotly figure."""
-    accent_y = 1 + (m.top_space_px - MASTER_SPACING_PX) / m.chart_h_px
+    accent_y = 1 + (m.top_space_px - m.accent_top_px) / m.chart_h_px
     accent_x0 = m.left_align_x_plotly
     accent_x1 = accent_x0 + ACCENT_LINE_LENGTH / m.chart_w_px
     fig.add_shape(
