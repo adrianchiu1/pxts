@@ -292,7 +292,8 @@ class TestTitle:
     def test_title_and_sub_plotly(self, ts_df):
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="plotly")
         assert "Main" in fig.layout.title.text
-        assert "Sub" in fig.layout.title.text
+        annot_texts = [a.text for a in fig.layout.annotations]
+        assert "Sub" in annot_texts
 
     def test_sub_mpl(self, ts_df):
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="matplotlib")
