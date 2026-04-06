@@ -293,6 +293,8 @@ class LayoutMetrics:
 
     # Vertical spacing (pixels at 100 DPI)
     accent_top_px: float = MASTER_SPACING_PX + 1.5  # figure top → accent line centre
+    title_h_px: float = 0       # 0 when no title
+    sub_h_px: float = 0         # 0 when no subtitle
     legend_h_px: float = 28
     source_h_px: float = 0      # 0 when no source
     pad_bottom_px: float = 45   # room for x-axis tick labels
@@ -349,6 +351,8 @@ class LayoutMetrics:
             title_main=title_main,
             title_sub=title_sub,
             source_text=source_text,
+            title_h_px=32 if title_main else 0,
+            sub_h_px=24 if title_sub else 0,
             source_h_px=(MASTER_SPACING_PX + font_size * 1.5 - 1) if source_text else 0,
             right_margin_px=right_margin,
             legend_h_px=0 if use_labels else _estimate_legend_h_px(legend_labels or [], font_size, w),
@@ -407,16 +411,6 @@ class LayoutMetrics:
     def left_align_x_plotly(self) -> float:
         """X in plotly paper space corresponding to MASTER_SPACING_PX from the figure left."""
         return (MASTER_SPACING_PX - self.left_margin_px) / self.chart_w_px
-
-    @property
-    def chrome_xshift_px(self) -> int:
-        """Pixel offset from paper x=0 (left plot edge) to the chrome left-align position.
-
-        Use this with x=0, xref='paper', xshift=chrome_xshift_px for annotations.
-        Unlike left_align_x_plotly, this is in absolute screen pixels and is
-        immune to make_subplots domain scaling that can misplace negative paper x coords.
-        """
-        return MASTER_SPACING_PX - self.left_margin_px
 
 
 # ---------------------------------------------------------------------------
@@ -587,54 +581,41 @@ def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
 
 
 def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
-    """Add title/subtitle via layout.title using a single HTML text block.
+    """Add title/subtitle to plotly layout kwargs.
 
-    Title and subtitle are combined into one layout.title.text string with
-    a <br> separator and a <span> to set the subtitle's font size.  A single
-    text element means a single rendering pipeline, so:
-      - Horizontal alignment is always consistent (no xshift / paper-fraction
-        ambiguity between different annotation elements).
-      - The title→subtitle gap equals Plotly's natural line-height for the
-        title font (~font_size × 1.2), which matches _title_line_h_px exactly.
-      - Behaviour is text-content-independent (no Plotly.js xshift quirks).
-
-    xref="container" places the anchor at MASTER_SPACING_PX / total_w_px,
-    giving exactly 10 px from the figure left in both single-axis (630 px)
-    and dual-axis (670 px) figures, independent of xaxis.domain.
+    The main title uses layout.title with container coords so yanchor='top'
+    anchors at the true top of the title text.  The subtitle is drawn as a
+    separate annotation positioned directly below the title in paper space,
+    giving us pixel-precise control and avoiding Plotly's native subtitle
+    1.6em hardcoded gap.
     """
     if not m.title_main and not m.title_sub:
         return
 
-    # Build the combined HTML text.  When there is no main title we render
-    # the subtitle in the title slot so the chrome stays in the right position.
-    if m.title_main and m.title_sub:
-        sub_size = m.font_size + 2
-        text = (
-            f"<b>{m.title_main}</b>"
-            f"<br>"
-            f"<span style='font-size:{sub_size}px;font-weight:normal'>"
-            f"{m.title_sub}"
-            f"</span>"
-        )
-    elif m.title_main:
-        text = f"<b>{m.title_main}</b>"
-    else:
-        text = m.title_sub
+    # Main title — container coords (1 = figure top, 0 = figure bottom).
+    title_x = MASTER_SPACING_PX / m.total_w_px
+    title_y = 1 - m.title_top_px / m.total_h_px
 
-    # pad defaults to t=3,b=3,l=3,r=3 at render time in the browser.  Zero
-    # them out so the anchor lands exactly at the computed pixel position
-    # (title_top_px from figure top, MASTER_SPACING_PX from figure left).
     layout_kwargs["title"] = dict(
-        text=text,
-        x=MASTER_SPACING_PX / m.total_w_px,
-        xanchor="left",
-        y=1 - m.title_top_px / m.total_h_px,
-        yanchor="top",
-        xref="container",
-        yref="container",
-        pad=dict(t=0, b=0, l=0, r=0),
+        text=f"<b>{m.title_main}</b>" if m.title_main else "",
+        x=title_x, xanchor="left",
+        y=title_y, yanchor="top",
+        xref="container", yref="container",
         font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
     )
+
+    # Subtitle — annotation placed immediately below the title in paper space.
+    if m.title_sub:
+        sub_top_px = m.title_top_px + m._title_line_h_px   # px from figure top
+        sub_y = 1 + (m.top_space_px - sub_top_px) / m.chart_h_px
+        fig.add_annotation(
+            text=m.title_sub,
+            x=m.left_align_x_plotly, y=sub_y,
+            xref="paper", yref="paper",
+            xanchor="left", yanchor="top",
+            showarrow=False,
+            font=dict(size=m.font_size + 2, color=FT_FONT_COLOR, family=m.font_family),
+        )
 
 
 def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
@@ -643,7 +624,7 @@ def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
         return
     fig.add_annotation(
         text=m.source_text,
-        x=0, xshift=m.chrome_xshift_px, y=0,
+        x=m.left_align_x_plotly, y=0,
         xref="paper", yref="paper",
         xanchor="left", yanchor="top",
         yshift=-m.pad_bottom_px,

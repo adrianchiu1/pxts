@@ -286,16 +286,13 @@ class TestTitle:
         plt.close(fig)
 
     def test_title_plotly(self, ts_df):
-        # Title is rendered via layout.title (native Plotly pipeline).
         fig = tsplot(ts_df, title={"main": "My Title"}, backend="plotly")
-        assert "My Title" in (fig.layout.title.text or "")
+        assert "My Title" in fig.layout.title.text
 
     def test_title_and_sub_plotly(self, ts_df):
-        # Both lines combined in a single layout.title.text HTML string.
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="plotly")
-        title_text = fig.layout.title.text or ""
-        assert "Main" in title_text
-        assert "Sub" in title_text
+        assert "Main" in fig.layout.title.text
+        assert "Sub" in [a.text for a in fig.layout.annotations]
 
     def test_sub_mpl(self, ts_df):
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="matplotlib")
