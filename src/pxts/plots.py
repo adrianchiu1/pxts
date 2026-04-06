@@ -587,47 +587,42 @@ def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
 
 
 def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
-    """Add title/subtitle via layout.title with native subtitle support.
+    """Add title/subtitle via layout.title using a single HTML text block.
 
-    Using layout.title for both main title and subtitle guarantees they
-    share Plotly's own rendering pipeline, so horizontal alignment is
-    always consistent regardless of text content or figure type
-    (go.Figure vs make_subplots dual-axis).  Annotation xshift was
-    unreliable — Plotly.js renders identical xshift params differently
-    depending on text content.
+    Title and subtitle are combined into one layout.title.text string with
+    a <br> separator and a <span> to set the subtitle's font size.  A single
+    text element means a single rendering pipeline, so:
+      - Horizontal alignment is always consistent (no xshift / paper-fraction
+        ambiguity between different annotation elements).
+      - The title→subtitle gap equals Plotly's natural line-height for the
+        title font (~font_size × 1.2), which matches _title_line_h_px exactly.
+      - Behaviour is text-content-independent (no Plotly.js xshift quirks).
 
-    xref="container" places the title at an absolute pixel fraction of
-    the full figure width, ensuring MASTER_SPACING_PX from the left edge
-    in both single and dual-axis figures (no paper/domain ambiguity).
-
-    When only a subtitle is provided (no main title), it falls back to
-    an annotation since layout.title.subtitle requires a main title.
+    xref="container" places the anchor at MASTER_SPACING_PX / total_w_px,
+    giving exactly 10 px from the figure left in both single-axis (630 px)
+    and dual-axis (670 px) figures, independent of xaxis.domain.
     """
     if not m.title_main and not m.title_sub:
         return
 
-    # --- subtitle-only fallback (rare) ---
-    if not m.title_main:
-        sub_top_px = m.title_top_px
-        sub_yshift = int(m.top_space_px) - int(sub_top_px)
-        fig.add_annotation(
-            text=m.title_sub,
-            x=0, xshift=m.chrome_xshift_px, y=1,
-            xref="paper", yref="paper",
-            xanchor="left", yanchor="top",
-            yshift=sub_yshift,
-            showarrow=False,
-            font=dict(size=m.font_size + 2, color=FT_FONT_COLOR, family=m.font_family),
+    # Build the combined HTML text.  When there is no main title we render
+    # the subtitle in the title slot so the chrome stays in the right position.
+    if m.title_main and m.title_sub:
+        sub_size = m.font_size + 2
+        text = (
+            f"<b>{m.title_main}</b>"
+            f"<br>"
+            f"<span style='font-size:{sub_size}px;font-weight:normal'>"
+            f"{m.title_sub}"
+            f"</span>"
         )
-        return
+    elif m.title_main:
+        text = f"<b>{m.title_main}</b>"
+    else:
+        text = m.title_sub
 
-    # --- main title (+ optional subtitle via native layout.title) ---
-    # container x: 0=figure left, 1=figure right
-    #   title_x = MASTER_SPACING_PX / total_w_px → 10 px from figure left
-    # container y: 0=figure bottom, 1=figure top  (yanchor="top")
-    #   title_y = 1 - title_top_px / total_h_px   → title_top_px px from figure top
-    title_dict = dict(
-        text=f"<b>{m.title_main}</b>",
+    layout_kwargs["title"] = dict(
+        text=text,
         x=MASTER_SPACING_PX / m.total_w_px,
         xanchor="left",
         y=1 - m.title_top_px / m.total_h_px,
@@ -636,14 +631,6 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
         yref="container",
         font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
     )
-
-    if m.title_sub:
-        title_dict["subtitle"] = dict(
-            text=m.title_sub,
-            font=dict(size=m.font_size + 2, color=FT_FONT_COLOR, family=m.font_family),
-        )
-
-    layout_kwargs["title"] = title_dict
 
 
 def _draw_source_plotly(fig, m: LayoutMetrics) -> None:

@@ -291,10 +291,11 @@ class TestTitle:
         assert "My Title" in (fig.layout.title.text or "")
 
     def test_title_and_sub_plotly(self, ts_df):
-        # Main title in layout.title.text; subtitle in layout.title.subtitle.text.
+        # Both lines combined in a single layout.title.text HTML string.
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="plotly")
-        assert "Main" in (fig.layout.title.text or "")
-        assert fig.layout.title.subtitle.text == "Sub"
+        title_text = fig.layout.title.text or ""
+        assert "Main" in title_text
+        assert "Sub" in title_text
 
     def test_sub_mpl(self, ts_df):
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="matplotlib")
