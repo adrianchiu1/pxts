@@ -579,40 +579,42 @@ def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
 def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
     """Add title/subtitle to plotly layout kwargs.
 
-    The main title uses layout.title with container coords so yanchor='top'
-    anchors at the true top of the title text (y denominator = integer figure
-    height for pixel-exact placement).  The subtitle is drawn as a separate
-    annotation using yshift in screen pixels from the chart-area top (y=1 in
-    paper space), which bypasses any coordinate-system scale-factor mismatch
-    and avoids Plotly's native subtitle 1.6em hardcoded gap.
+    Both the main title and subtitle are rendered as annotations using
+    xref/yref='paper' with yshift in screen pixels.  Using the same rendering
+    path for both guarantees they share one coordinate system, so their left
+    edges are resolved identically and stay pixel-aligned.
+
+    layout.title is cleared (text="") so Plotly does not draw a second title.
     """
     if not m.title_main and not m.title_sub:
         return
 
-    # Main title — container coords (1 = figure top, 0 = figure bottom).
-    # Use int(total_h_px) so the y fraction maps to an exact pixel row.
-    title_x = MASTER_SPACING_PX / m.total_w_px
-    title_y = 1 - m.title_top_px / int(m.total_h_px)
+    # Suppress the native layout.title so it does not duplicate the annotation.
+    layout_kwargs["title"] = dict(text="")
 
-    layout_kwargs["title"] = dict(
-        text=f"<b>{m.title_main}</b>" if m.title_main else "",
-        x=title_x, xanchor="left",
-        y=title_y, yanchor="top",
-        xref="container", yref="container",
-        font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
-    )
+    # All chrome elements (accent line, title, subtitle, source) share the same
+    # x anchor: left_align_x_plotly in paper space.  yshift is in screen pixels
+    # measured upward from y=1 (chart-area top), bypassing float scale factors.
+    chrome_x = m.left_align_x_plotly
 
-    # Subtitle — anchor at the chart-area top (y=1, paper) then shift up by the
-    # exact pixel distance from chart top to subtitle top.  Using yshift avoids
-    # dividing by chart_h_px (a float), which would introduce a scale-factor
-    # mismatch against the title's integer-aligned container coordinate.
+    if m.title_main:
+        title_yshift = int(m.top_space_px) - int(m.title_top_px)
+        fig.add_annotation(
+            text=f"<b>{m.title_main}</b>",
+            x=chrome_x, y=1,
+            xref="paper", yref="paper",
+            xanchor="left", yanchor="top",
+            yshift=title_yshift,
+            showarrow=False,
+            font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
+        )
+
     if m.title_sub:
         sub_top_px = m.title_top_px + m._title_line_h_px   # px from figure top
-        # int(top_space_px) == margin.t, so this shift is in true screen pixels.
         sub_yshift = int(m.top_space_px) - int(sub_top_px)
         fig.add_annotation(
             text=m.title_sub,
-            x=m.left_align_x_plotly, y=1,
+            x=chrome_x, y=1,
             xref="paper", yref="paper",
             xanchor="left", yanchor="top",
             yshift=sub_yshift,
