@@ -632,6 +632,7 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
         yanchor="top",
         xref="container",
         yref="container",
+        automargin=False,
         pad=dict(t=0, b=0, l=0, r=0),
         font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
     )
