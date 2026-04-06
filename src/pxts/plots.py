@@ -310,7 +310,11 @@ class LayoutMetrics:
         """Build LayoutMetrics from user-facing parameter dicts."""
         if dimension:
             w = dimension.get("width", DEFAULT_CHART_WIDTH)
-            ar = dimension.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
+            h = dimension.get("height")
+            if h is not None:
+                ar = w / h
+            else:
+                ar = dimension.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
         else:
             w = DEFAULT_CHART_WIDTH
             ar = DEFAULT_ASPECT_RATIO
@@ -1163,7 +1167,8 @@ def tsplot(df, *,
             Triggers dual-axis mode.
         font: dict with optional keys: size, family.
         dimension: dict with optional keys: width (default 550),
-            aspect_ratio (default 1.5). Governs the chart area only —
+            height, aspect_ratio (default 1.5). If height is provided it
+            takes precedence over aspect_ratio. Governs the chart area only —
             title, legend, source are outside this dimension.
         title: dict with optional keys: main (str), sub (str).
         annotations: dict with optional keys: hline, vline. Each is list or dict.
