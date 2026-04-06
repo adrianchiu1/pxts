@@ -408,6 +408,16 @@ class LayoutMetrics:
         """X in plotly paper space corresponding to MASTER_SPACING_PX from the figure left."""
         return (MASTER_SPACING_PX - self.left_margin_px) / self.chart_w_px
 
+    @property
+    def chrome_xshift_px(self) -> int:
+        """Pixel offset from paper x=0 (left plot edge) to the chrome left-align position.
+
+        Use this with x=0, xref='paper', xshift=chrome_xshift_px for annotations.
+        Unlike left_align_x_plotly, this is in absolute screen pixels and is
+        immune to make_subplots domain scaling that can misplace negative paper x coords.
+        """
+        return MASTER_SPACING_PX - self.left_margin_px
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -580,9 +590,11 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
     """Add title/subtitle to plotly layout kwargs.
 
     Both the main title and subtitle are rendered as annotations using
-    xref/yref='paper' with yshift in screen pixels.  Using the same rendering
-    path for both guarantees they share one coordinate system, so their left
-    edges are resolved identically and stay pixel-aligned.
+    xref/yref='paper' with xshift/yshift in screen pixels.  Using xshift
+    (absolute pixels from paper x=0) rather than a negative paper x fraction
+    guarantees identical left-edge positioning in both regular figures and
+    make_subplots dual-axis figures, where domain scaling can otherwise
+    misplace negative paper x coords.
 
     layout.title is cleared (text="") so Plotly does not draw a second title.
     """
@@ -592,16 +604,17 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
     # Suppress the native layout.title so it does not duplicate the annotation.
     layout_kwargs["title"] = dict(text="")
 
-    # All chrome elements (accent line, title, subtitle, source) share the same
-    # x anchor: left_align_x_plotly in paper space.  yshift is in screen pixels
-    # measured upward from y=1 (chart-area top), bypassing float scale factors.
-    chrome_x = m.left_align_x_plotly
+    # xshift is in absolute screen pixels from paper x=0 (the left plot edge).
+    # yshift is in screen pixels measured upward from y=1 (chart-area top).
+    # Using pixel offsets rather than paper fractions avoids coordinate-system
+    # differences between regular go.Figure() and make_subplots() figures.
+    xsh = m.chrome_xshift_px
 
     if m.title_main:
         title_yshift = int(m.top_space_px) - int(m.title_top_px)
         fig.add_annotation(
             text=f"<b>{m.title_main}</b>",
-            x=chrome_x, y=1,
+            x=0, xshift=xsh, y=1,
             xref="paper", yref="paper",
             xanchor="left", yanchor="top",
             yshift=title_yshift,
@@ -614,7 +627,7 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
         sub_yshift = int(m.top_space_px) - int(sub_top_px)
         fig.add_annotation(
             text=m.title_sub,
-            x=chrome_x, y=1,
+            x=0, xshift=xsh, y=1,
             xref="paper", yref="paper",
             xanchor="left", yanchor="top",
             yshift=sub_yshift,
@@ -629,7 +642,7 @@ def _draw_source_plotly(fig, m: LayoutMetrics) -> None:
         return
     fig.add_annotation(
         text=m.source_text,
-        x=m.left_align_x_plotly, y=0,
+        x=0, xshift=m.chrome_xshift_px, y=0,
         xref="paper", yref="paper",
         xanchor="left", yanchor="top",
         yshift=-m.pad_bottom_px,
