@@ -587,53 +587,63 @@ def _draw_accent_line_plotly(fig, m: LayoutMetrics) -> None:
 
 
 def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
-    """Add title/subtitle to plotly layout kwargs.
+    """Add title/subtitle via layout.title with native subtitle support.
 
-    Both the main title and subtitle are rendered as annotations using
-    xref/yref='paper' with xshift/yshift in screen pixels.  Using xshift
-    (absolute pixels from paper x=0) rather than a negative paper x fraction
-    guarantees identical left-edge positioning in both regular figures and
-    make_subplots dual-axis figures, where domain scaling can otherwise
-    misplace negative paper x coords.
+    Using layout.title for both main title and subtitle guarantees they
+    share Plotly's own rendering pipeline, so horizontal alignment is
+    always consistent regardless of text content or figure type
+    (go.Figure vs make_subplots dual-axis).  Annotation xshift was
+    unreliable — Plotly.js renders identical xshift params differently
+    depending on text content.
 
-    layout.title is cleared (text="") so Plotly does not draw a second title.
+    xref="container" places the title at an absolute pixel fraction of
+    the full figure width, ensuring MASTER_SPACING_PX from the left edge
+    in both single and dual-axis figures (no paper/domain ambiguity).
+
+    When only a subtitle is provided (no main title), it falls back to
+    an annotation since layout.title.subtitle requires a main title.
     """
     if not m.title_main and not m.title_sub:
         return
 
-    # Suppress the native layout.title so it does not duplicate the annotation.
-    layout_kwargs["title"] = dict(text="")
-
-    # xshift is in absolute screen pixels from paper x=0 (the left plot edge).
-    # yshift is in screen pixels measured upward from y=1 (chart-area top).
-    # Using pixel offsets rather than paper fractions avoids coordinate-system
-    # differences between regular go.Figure() and make_subplots() figures.
-    xsh = m.chrome_xshift_px
-
-    if m.title_main:
-        title_yshift = int(m.top_space_px) - int(m.title_top_px)
-        fig.add_annotation(
-            text=f"<b>{m.title_main}</b>",
-            x=0, xshift=xsh, y=1,
-            xref="paper", yref="paper",
-            xanchor="left", yanchor="top",
-            yshift=title_yshift,
-            showarrow=False,
-            font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
-        )
-
-    if m.title_sub:
-        sub_top_px = m.title_top_px + m._title_line_h_px   # px from figure top
+    # --- subtitle-only fallback (rare) ---
+    if not m.title_main:
+        sub_top_px = m.title_top_px
         sub_yshift = int(m.top_space_px) - int(sub_top_px)
         fig.add_annotation(
             text=m.title_sub,
-            x=0, xshift=xsh, y=1,
+            x=0, xshift=m.chrome_xshift_px, y=1,
             xref="paper", yref="paper",
             xanchor="left", yanchor="top",
             yshift=sub_yshift,
             showarrow=False,
             font=dict(size=m.font_size + 2, color=FT_FONT_COLOR, family=m.font_family),
         )
+        return
+
+    # --- main title (+ optional subtitle via native layout.title) ---
+    # container x: 0=figure left, 1=figure right
+    #   title_x = MASTER_SPACING_PX / total_w_px → 10 px from figure left
+    # container y: 0=figure bottom, 1=figure top  (yanchor="top")
+    #   title_y = 1 - title_top_px / total_h_px   → title_top_px px from figure top
+    title_dict = dict(
+        text=f"<b>{m.title_main}</b>",
+        x=MASTER_SPACING_PX / m.total_w_px,
+        xanchor="left",
+        y=1 - m.title_top_px / m.total_h_px,
+        yanchor="top",
+        xref="container",
+        yref="container",
+        font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
+    )
+
+    if m.title_sub:
+        title_dict["subtitle"] = dict(
+            text=m.title_sub,
+            font=dict(size=m.font_size + 2, color=FT_FONT_COLOR, family=m.font_family),
+        )
+
+    layout_kwargs["title"] = title_dict
 
 
 def _draw_source_plotly(fig, m: LayoutMetrics) -> None:

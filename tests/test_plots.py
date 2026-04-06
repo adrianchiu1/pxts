@@ -286,17 +286,15 @@ class TestTitle:
         plt.close(fig)
 
     def test_title_plotly(self, ts_df):
-        # Title is rendered as an annotation so all chrome shares one coordinate
-        # system; layout.title is intentionally cleared (text="").
+        # Title is rendered via layout.title (native Plotly pipeline).
         fig = tsplot(ts_df, title={"main": "My Title"}, backend="plotly")
-        annot_texts = [a.text for a in fig.layout.annotations]
-        assert any("My Title" in t for t in annot_texts)
+        assert "My Title" in (fig.layout.title.text or "")
 
     def test_title_and_sub_plotly(self, ts_df):
+        # Main title in layout.title.text; subtitle in layout.title.subtitle.text.
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="plotly")
-        annot_texts = [a.text for a in fig.layout.annotations]
-        assert any("Main" in t for t in annot_texts)
-        assert "Sub" in annot_texts
+        assert "Main" in (fig.layout.title.text or "")
+        assert fig.layout.title.subtitle.text == "Sub"
 
     def test_sub_mpl(self, ts_df):
         fig = tsplot(ts_df, title={"main": "Main", "sub": "Sub"}, backend="matplotlib")
