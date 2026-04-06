@@ -143,8 +143,24 @@ class TestColsResolution:
             tsplot(ts_df, yaxis2=["B"], backend="matplotlib")
 
     def test_yaxis_cols_wrong_type_raises(self, ts_df):
-        with pytest.raises(ValueError, match="cols.*must be list or dict"):
-            tsplot(ts_df, yaxis={"cols": "A"}, backend="matplotlib")
+        with pytest.raises(ValueError, match="cols.*must be list, dict, or str"):
+            tsplot(ts_df, yaxis={"cols": 42}, backend="matplotlib")
+
+    def test_yaxis_cols_str_shorthand(self, ts_df):
+        """str is accepted as shorthand for a single-element list."""
+        fig = tsplot(ts_df, yaxis={"cols": "A"}, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_yaxis2_cols_str_shorthand_mpl(self, ts_df):
+        fig = tsplot(ts_df, yaxis2={"cols": "B"}, backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_yaxis2_cols_str_shorthand_plotly(self, ts_df):
+        fig = tsplot(ts_df, yaxis2={"cols": "B"}, backend="plotly")
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) == 2
 
     def test_dict_cols_with_dict_yaxis2_cols(self, ts_df):
         fig = tsplot(ts_df,

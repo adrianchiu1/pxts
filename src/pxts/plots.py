@@ -114,9 +114,11 @@ def _parse_axis_cols(axis_dict, axis_name):
         return col_list, display_names
     elif isinstance(raw, list):
         return raw, {}
+    elif isinstance(raw, str):
+        return [raw], {}
     else:
         raise ValueError(
-            f"{axis_name}['cols'] must be list or dict, got {type(raw).__name__}"
+            f"{axis_name}['cols'] must be list, dict, or str, got {type(raw).__name__}"
         )
 
 
