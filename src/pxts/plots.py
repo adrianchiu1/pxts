@@ -621,6 +621,9 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
     else:
         text = m.title_sub
 
+    # pad defaults to t=3,b=3,l=3,r=3 at render time in the browser.  Zero
+    # them out so the anchor lands exactly at the computed pixel position
+    # (title_top_px from figure top, MASTER_SPACING_PX from figure left).
     layout_kwargs["title"] = dict(
         text=text,
         x=MASTER_SPACING_PX / m.total_w_px,
@@ -629,6 +632,7 @@ def _draw_title_plotly(fig, m: LayoutMetrics, layout_kwargs: dict) -> None:
         yanchor="top",
         xref="container",
         yref="container",
+        pad=dict(t=0, b=0, l=0, r=0),
         font=dict(color=FT_FONT_COLOR, size=m.font_size + 6, family=m.font_family),
     )
 
