@@ -263,6 +263,15 @@ class TestDimension:
         assert fig.layout.width > 800
         assert fig.layout.height > chart_h
 
+    def test_dimension_plotly_explicit_height(self, ts_df):
+        """Explicit height overrides aspect_ratio."""
+        fig = tsplot(ts_df, dimension={"width": 600, "height": 100}, backend="plotly")
+        # chart area is 600x100; total height adds margins so must be > 100
+        assert fig.layout.width > 600
+        assert fig.layout.height > 100
+        # total height must be less than what aspect_ratio=1.5 would produce (600/1.5=400)
+        assert fig.layout.height < 600 / 1.5
+
 
 # ---------------------------------------------------------------------------
 # Font
