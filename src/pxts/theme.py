@@ -64,8 +64,8 @@ DEFAULT_FONT_SIZE: int = 14
 FONT_FAMILY: str = "Outfit, Helvetica Neue, Helvetica, Arial, sans-serif"
 OUTFIT_FONT_URL: str = "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap"
 
-# Chart dimension defaults (FT-style: 600px wide, 1.5 aspect ratio)
-DEFAULT_CHART_WIDTH: int = 550
+# Chart dimension defaults (300px tall, 1.5 aspect ratio → 450px wide)
+DEFAULT_CHART_WIDTH: int = 450
 DEFAULT_ASPECT_RATIO: float = 1.5
 
 # Accent line: short bar at top-left (pixels)

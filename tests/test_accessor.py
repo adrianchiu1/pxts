@@ -64,11 +64,11 @@ class TestDelegation:
         assert not hasattr(ts_df.ts, "plot_dual")
 
     def test_plot_with_new_params(self, ts_df):
-        """New parameters (dimension, title, annotations, source) are accepted."""
+        """New parameters (dim, title, annotations, source) are accepted."""
         import matplotlib.figure
         fig = ts_df.ts.plot(
             title={"main": "Test", "sub": "Subtitle"},
-            dimension={"width": 800},
+            dim={"width": 800},
             annotations={"hline": [2.0]},
             source=["Test Source"],
             backend="matplotlib",
