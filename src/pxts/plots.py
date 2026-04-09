@@ -2,7 +2,7 @@
 
 Public API:
     tsplot(df, *, xaxis=None, yaxis=None, yaxis2=None, font=None,
-           dimension=None, title=None, annotations=None, source=None,
+           dim=None, title=None, annotations=None, source=None,
            labels=False, backend=None, **kwargs)
 
 When labels=True, the legend is replaced with FT-style end-of-line labels:
@@ -212,7 +212,7 @@ def _validate_annot_lines(value, name: str) -> None:
         )
 
 
-def _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dimension,
+def _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dim,
                              title, annotations, source) -> None:
     """Validate all dict-based parameters for tsplot."""
     if xaxis is not None:
@@ -234,9 +234,9 @@ def _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dimension,
         if not isinstance(font, dict):
             raise ValueError(f"font must be dict or None, got {type(font).__name__}")
 
-    if dimension is not None:
-        if not isinstance(dimension, dict):
-            raise ValueError(f"dimension must be dict or None, got {type(dimension).__name__}")
+    if dim is not None:
+        if not isinstance(dim, dict):
+            raise ValueError(f"dim must be dict or None, got {type(dim).__name__}")
 
     if title is not None:
         if not isinstance(title, dict):
@@ -304,17 +304,17 @@ class LayoutMetrics:
     right_margin_px: int = 20
 
     @classmethod
-    def from_params(cls, dimension, font, title, source, *, is_dual: bool = False,
+    def from_params(cls, dim, font, title, source, *, is_dual: bool = False,
                     labels_margin_px: int = 0, use_labels: bool = False, idx=None,
                     legend_labels: list | None = None):
         """Build LayoutMetrics from user-facing parameter dicts."""
-        if dimension:
-            w = dimension.get("width", DEFAULT_CHART_WIDTH)
-            h = dimension.get("height")
+        if dim:
+            w = dim.get("width", DEFAULT_CHART_WIDTH)
+            h = dim.get("height")
             if h is not None:
                 ar = w / h
             else:
-                ar = dimension.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
+                ar = dim.get("aspect_ratio", DEFAULT_ASPECT_RATIO)
         else:
             w = DEFAULT_CHART_WIDTH
             ar = DEFAULT_ASPECT_RATIO
@@ -860,7 +860,7 @@ def _draw_line_labels_plotly(fig, df, cols, display_names, font_size, m):
 # ---------------------------------------------------------------------------
 
 def _plot_ts_mpl(df, left_cols, right_cols, display_names,
-                 xaxis, yaxis, yaxis2, font, dimension, title, annotations,
+                 xaxis, yaxis, yaxis2, font, dim, title, annotations,
                  source, labels=False, **kwargs):
     """matplotlib implementation — relies on mpl defaults for natural look."""
     import matplotlib.pyplot as plt
@@ -958,7 +958,7 @@ def _plot_ts_mpl(df, left_cols, right_cols, display_names,
 # ---------------------------------------------------------------------------
 
 def _plot_ts_plotly(df, left_cols, right_cols, display_names,
-                    xaxis, yaxis, yaxis2, font, dimension, title, annotations,
+                    xaxis, yaxis, yaxis2, font, dim, title, annotations,
                     source, labels=False, **kwargs):
     """plotly implementation — FT-style layout with accent line, titles, source."""
     import plotly.graph_objects as go
@@ -978,7 +978,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
     if not use_labels:
         legend_labels = [_get_display_name(c, display_names) for c in left_cols + right_cols]
 
-    m = LayoutMetrics.from_params(dimension, font, title, source, is_dual=is_dual,
+    m = LayoutMetrics.from_params(dim, font, title, source, is_dual=is_dual,
                                   labels_margin_px=labels_margin_px,
                                   use_labels=use_labels, idx=df.index,
                                   legend_labels=legend_labels)
@@ -1147,7 +1147,7 @@ def _plot_ts_plotly(df, left_cols, right_cols, display_names,
 
 def tsplot(df, *,
            xaxis=None, yaxis=None, yaxis2=None,
-           font=None, dimension=None, title=None, annotations=None,
+           font=None, dim=None, title=None, annotations=None,
            source=None, labels=False, backend=None, **kwargs):
     """Plot one or more time series columns from a DataFrame.
 
@@ -1166,10 +1166,10 @@ def tsplot(df, *,
         yaxis2: dict with required "cols" key and optional: range, name.
             Triggers dual-axis mode.
         font: dict with optional keys: size, family.
-        dimension: dict with optional keys: width (default 550),
+        dim: dict with optional keys: width (default 450),
             height, aspect_ratio (default 1.5). If height is provided it
             takes precedence over aspect_ratio. Governs the chart area only —
-            title, legend, source are outside this dimension.
+            title, legend, source are outside this dim.
         title: dict with optional keys: main (str), sub (str).
         annotations: dict with optional keys: hline, vline. Each is list or dict.
         source: list of source strings, e.g. ['LSEG', 'Bloomberg'].
@@ -1199,7 +1199,7 @@ def tsplot(df, *,
         source = ["Own calculations"]
 
     validate_ts(df)
-    _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dimension, title,
+    _validate_tsplot_params(xaxis, yaxis, yaxis2, font, dim, title,
                             annotations, source)
     left_cols, right_cols, display_names = _resolve_cols(df, yaxis, yaxis2)
 
@@ -1218,9 +1218,9 @@ def tsplot(df, *,
 
     if backend == "matplotlib":
         return _plot_ts_mpl(df, left_cols, right_cols, display_names,
-                            xaxis, yaxis, yaxis2, font, dimension, title,
+                            xaxis, yaxis, yaxis2, font, dim, title,
                             annotations, source, labels=labels, **kwargs)
     else:
         return _plot_ts_plotly(df, left_cols, right_cols, display_names,
-                               xaxis, yaxis, yaxis2, font, dimension, title,
+                               xaxis, yaxis, yaxis2, font, dim, title,
                                annotations, source, labels=labels, **kwargs)

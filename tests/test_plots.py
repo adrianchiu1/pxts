@@ -190,8 +190,8 @@ class TestValidation:
             tsplot(ts_df, annotations={"hline": "bad"}, backend="matplotlib")
 
     def test_dimension_not_dict_raises(self, ts_df):
-        with pytest.raises(ValueError, match="dimension must be dict"):
-            tsplot(ts_df, dimension="bad", backend="matplotlib")
+        with pytest.raises(ValueError, match="dim must be dict"):
+            tsplot(ts_df, dim="bad", backend="matplotlib")
 
     def test_source_not_list_raises(self, ts_df):
         with pytest.raises(ValueError, match="source must be list"):
@@ -250,14 +250,14 @@ class TestDimension:
         plt.close(fig)
 
     def test_dimension_mpl_custom(self, ts_df):
-        """Dimension param is ignored for mpl — always uses mpl defaults."""
-        fig = tsplot(ts_df, dimension={"width": 800, "aspect_ratio": 2.0}, backend="matplotlib")
+        """dim param is ignored for mpl — always uses mpl defaults."""
+        fig = tsplot(ts_df, dim={"width": 800, "aspect_ratio": 2.0}, backend="matplotlib")
         w, h = fig.get_size_inches()
         assert w > 0 and h > 0
         plt.close(fig)
 
     def test_dimension_plotly(self, ts_df):
-        fig = tsplot(ts_df, dimension={"width": 800, "aspect_ratio": 2.0}, backend="plotly")
+        fig = tsplot(ts_df, dim={"width": 800, "aspect_ratio": 2.0}, backend="plotly")
         chart_h = 800 / 2.0
         # Total width = chart + margins, total height = chart + margins
         assert fig.layout.width > 800
@@ -265,7 +265,7 @@ class TestDimension:
 
     def test_dimension_plotly_explicit_height(self, ts_df):
         """Explicit height overrides aspect_ratio."""
-        fig = tsplot(ts_df, dimension={"width": 600, "height": 100}, backend="plotly")
+        fig = tsplot(ts_df, dim={"width": 600, "height": 100}, backend="plotly")
         # chart area is 600x100; total height adds margins so must be > 100
         assert fig.layout.width > 600
         assert fig.layout.height > 100
