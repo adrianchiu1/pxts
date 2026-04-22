@@ -1,9 +1,10 @@
-"""pxts I/O layer — read_ts, write_ts, and read_bdh for CSV round-trips and Bloomberg data.
+"""pxts I/O layer — read_ts, write_ts, read_bdh, and read_mb.
 
 Public API:
     read_ts(path, *, tz=None, date_format=None) -> pd.DataFrame
     write_ts(df, path, *, date_format=None) -> None
     read_bdh(tickers, start, field='PX_LAST', end=None) -> pd.DataFrame
+    read_mb(series) -> pd.DataFrame
 
 Internal:
     _detect_date_format(sample) -> tuple[str, bool]
@@ -257,3 +258,107 @@ def read_bdh(
         data = data.rename(columns={v: k for k, v in rename_map.items()})
 
     return validate_ts(data)
+
+
+def read_mb(series) -> pd.DataFrame:
+    """Fetch Macrobond historical time series data.
+
+    Calls mda.get_series, normalises the response, and returns a validated
+    wide-format DataFrame with a DatetimeIndex and one column per series.
+    The full available history is returned; slice the result as needed.
+
+    Requires macrobond_data_api (optional dependency). Install with:
+        pip install macrobond-data-api
+
+    Parameters
+    ----------
+    series : list of str, str, or dict
+        Macrobond series identifiers, e.g. ['hg_c1_cl', 'hg_c2_cl'].
+        If a dict is provided, keys are the desired output column names and
+        values are the Macrobond series identifiers, e.g.
+        {'Copper 1M': 'hg_c1_cl', 'Copper 2M': 'hg_c2_cl'}.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide-format DataFrame with DatetimeIndex (rows = dates, columns =
+        FullDescription from Macrobond metadata, or dict keys when series is
+        a dict). Series with disjoint date ranges are aligned on the union of
+        all dates; missing observations are NaN.
+
+    Raises
+    ------
+    ImportError
+        If macrobond_data_api is not installed.
+    ValueError
+        If any requested series returns an error from the Macrobond API.
+    RuntimeError
+        If the get_series call itself raises an unexpected exception.
+    pxtsValidationError
+        If the returned DataFrame does not have a DatetimeIndex.
+    """
+    try:
+        import macrobond_data_api as mda
+    except ImportError:
+        raise ImportError(
+            "macrobond_data_api required for read_mb(). "
+            "Install with: pip install macrobond-data-api"
+        )
+
+    if isinstance(series, dict):
+        rename_map = series  # {new_name: macrobond_id}
+        series_list = list(series.values())
+    else:
+        rename_map = None
+        if isinstance(series, str):
+            series = [series]
+        series_list = list(series)
+
+    # Fetch entities from Macrobond (notebook cell 1)
+    try:
+        entities = mda.get_series(series_list)
+    except Exception as exc:
+        raise RuntimeError(f"macrobond_data_api.get_series failed: {exc}") from exc
+
+    # Defensive error check — get_series may return error entities rather than raising
+    for entity in entities:
+        if getattr(entity, "is_error", False):
+            name = getattr(entity, "name", "(unknown)")
+            msg = getattr(entity, "error_message", str(entity))
+            raise ValueError(f"Macrobond series error — '{name}': {msg}")
+
+    # Normalise to a flat DataFrame (notebook cell 2)
+    df_raw = pd.json_normalize([x.to_dict() for x in entities])
+
+    # Explode Dates and Values into long format (notebook cell 3)
+    df_long = (
+        df_raw.set_index(["metadata.PrimName", "metadata.FullDescription"])[
+            ["Dates", "Values"]
+        ]
+        .apply(pd.Series.explode)
+        .reset_index()
+    )
+
+    # PrimName → FullDescription mapping used for column ordering
+    prim_to_full = dict(
+        zip(df_raw["metadata.PrimName"], df_raw["metadata.FullDescription"])
+    )
+
+    # Pivot to wide format; mismatched date ranges produce NaN automatically
+    df_wide = df_long.pivot(
+        index="Dates", columns="metadata.FullDescription", values="Values"
+    )
+    df_wide.index = pd.to_datetime(df_wide.index)
+    df_wide.index.name = "date"
+    df_wide.columns.name = None
+    df_wide = df_wide.astype(float)
+
+    if rename_map is not None:
+        full_to_new = {prim_to_full[v]: k for k, v in rename_map.items()}
+        df_wide = df_wide.rename(columns=full_to_new)
+        df_wide = df_wide[list(rename_map.keys())]
+    else:
+        ordered_cols = [prim_to_full[p] for p in series_list]
+        df_wide = df_wide[ordered_cols]
+
+    return validate_ts(df_wide)
