@@ -1,12 +1,108 @@
 """pxts core standalone functions for datetime-indexed DataFrames."""
 from __future__ import annotations
 
+import calendar as _calendar
 import warnings
 
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 from pxts.exceptions import pxtsValidationError
+
+_MONTH_ABBR = {
+    1: "JAN", 2: "FEB", 3: "MAR", 4: "APR",
+    5: "MAY", 6: "JUN", 7: "JUL", 8: "AUG",
+    9: "SEP", 10: "OCT", 11: "NOV", 12: "DEC",
+}
+
+# IMM months: March, June, September, December
+_IMM_MONTHS = frozenset({3, 6, 9, 12})
+
+# Quarter-start month sets mapped to their pandas alias
+_QS_SETS = (
+    (frozenset({1, 4, 7, 10}), "QS"),
+    (frozenset({2, 5, 8, 11}), "QS-FEB"),
+    (frozenset({3, 6, 9, 12}), "QS-MAR"),
+)
+
+# Quarter-end month sets mapped to their pandas alias
+_QE_SETS = (
+    (frozenset({3, 6, 9, 12}), "QE"),
+    (frozenset({1, 4, 7, 10}), "QE-OCT"),
+    (frozenset({2, 5, 8, 11}), "QE-NOV"),
+)
+
+
+def _is_month_end(ts: pd.Timestamp) -> bool:
+    return ts.day == _calendar.monthrange(ts.year, ts.month)[1]
+
+
+def _detect_monthly(index: pd.DatetimeIndex) -> str | None:
+    if all(ts.day == 1 for ts in index):
+        return "MS"
+    if all(_is_month_end(ts) for ts in index):
+        return "ME"
+    return None
+
+
+def _detect_quarterly(index: pd.DatetimeIndex) -> str | None:
+    months = [ts.month for ts in index]
+
+    # IMM: 3rd Wednesday of Mar/Jun/Sep/Dec — check before QS-MAR which shares months
+    if (
+        all(m in _IMM_MONTHS for m in months)
+        and all(15 <= ts.day <= 21 for ts in index)
+        and all(ts.weekday() == 2 for ts in index)
+    ):
+        return "IMM"
+
+    unique_months = frozenset(months)
+
+    if all(ts.day == 1 for ts in index):
+        for month_set, alias in _QS_SETS:
+            if unique_months <= month_set:
+                return alias
+
+    if all(_is_month_end(ts) for ts in index):
+        for month_set, alias in _QE_SETS:
+            if unique_months <= month_set:
+                return alias
+
+    return None
+
+
+def _detect_yearly(index: pd.DatetimeIndex) -> str | None:
+    months = [ts.month for ts in index]
+    if len(set(months)) != 1:
+        return None
+    month = months[0]
+
+    if all(ts.day == 1 for ts in index):
+        return "YS" if month == 1 else f"YS-{_MONTH_ABBR[month]}"
+
+    if all(_is_month_end(ts) for ts in index):
+        return "YE" if month == 12 else f"YE-{_MONTH_ABBR[month]}"
+
+    return None
+
+
+def _generate_imm_dates(start: pd.Timestamp, end: pd.Timestamp) -> pd.DatetimeIndex:
+    """Return all IMM dates in [start, end] plus the next one after end."""
+    dates: list[pd.Timestamp] = []
+    year = start.year
+    found_beyond = False
+    while not found_beyond:
+        for month in [3, 6, 9, 12]:
+            first = pd.Timestamp(year, month, 1)
+            days_to_wed = (2 - first.weekday()) % 7
+            third_wed = first + pd.Timedelta(days=days_to_wed) + pd.Timedelta(weeks=2)
+            if third_wed >= start:
+                dates.append(third_wed)
+                if third_wed > end:
+                    found_beyond = True
+                    break
+        year += 1
+    return pd.DatetimeIndex(dates)
 
 
 def _tz_equal(tz_a, tz_b) -> bool:
@@ -99,6 +195,9 @@ def to_dense(
     validate_ts(df)
     if freq is None:
         freq = infer_freq(df)
+    if freq == "IMM":
+        new_index = _generate_imm_dates(df.index.min(), df.index.max())
+        return df.reindex(new_index, method=fill)
     # Guard: no-op if already at requested frequency (normalize alias before comparing)
     if df.index.freq is not None:
         try:
@@ -113,15 +212,19 @@ def to_dense(
 def infer_freq(df: pd.DataFrame) -> str:
     """Infer the minimum observed interval in the DatetimeIndex.
 
-    Returns a pandas offset alias string ('D', 'h', 'ME', etc.) directly
-    usable in to_dense() and pandas resampling.
+    Returns a pandas offset alias string ('D', 'h', 'ME', 'QS', 'IMM', etc.)
+    directly usable in to_dense() and pandas resampling.
 
     Uses the minimum diff approach: min(index.diff().dropna()). This returns
     the most granular interval present, which prevents data loss when densifying.
 
+    Calendar-based frequencies (monthly, quarterly, yearly, IMM) are detected
+    from date alignment and emit a UserWarning so callers know the freq was
+    inferred. Pass freq= explicitly to to_dense() to suppress the warning.
+
     Limitation: Cannot distinguish 'B' (business day) from 'D' (calendar day)
-    because a 1-day timedelta maps to Day, not BusinessDay. Document this in
-    user-facing docs; users should pass freq='B' to to_dense() explicitly.
+    because a 1-day timedelta maps to Day, not BusinessDay. Pass freq='B' to
+    to_dense() explicitly.
 
     Raises ValueError if fewer than 2 data points (cannot compute diffs).
     """
@@ -132,10 +235,68 @@ def infer_freq(df: pd.DataFrame) -> str:
             "pxts: Cannot infer frequency from fewer than 2 data points."
         )
     min_diff = diffs.min()
+
     # B-vs-D: a 1-day minimum diff could be business or calendar day
     if min_diff == pd.Timedelta(days=1):
         has_weekend = any(ts.weekday() >= 5 for ts in df.index)
         return "D" if has_weekend else "B"
+
+    # Calendar-based detection: range check then date-alignment check.
+    # Quarterly range [84, 98] is wider than standard [90, 92] to cover all
+    # possible IMM gaps (3rd Wednesday shifts cause 84–98 day spreads).
+    days = min_diff.days
+    cal_freq: str | None = None
+    ambiguous_msg: str | None = None
+
+    if 28 <= days <= 31:
+        cal_freq = _detect_monthly(df.index)
+        if cal_freq is None:
+            ambiguous_msg = (
+                f"Data looks monthly (min gap {days} days) but dates don't align "
+                f"to month-start or month-end."
+            )
+    elif 84 <= days <= 98:
+        cal_freq = _detect_quarterly(df.index)
+        if cal_freq is None:
+            ambiguous_msg = (
+                f"Data looks quarterly (min gap {days} days) but dates don't align "
+                f"to a recognised quarterly pattern (QS, QE, or IMM)."
+            )
+    elif 365 <= days <= 366:
+        cal_freq = _detect_yearly(df.index)
+        if cal_freq is None:
+            ambiguous_msg = (
+                f"Data looks yearly (min gap {days} days) but dates don't align "
+                f"to year-start or year-end."
+            )
+
+    if cal_freq is not None:
+        if cal_freq == "IMM":
+            warnings.warn(
+                "pxts: Inferred IMM quarterly frequency "
+                "(3rd Wednesday of Mar/Jun/Sep/Dec). "
+                "Pass freq='IMM' explicitly to suppress this warning.",
+                UserWarning,
+                stacklevel=2,
+            )
+        else:
+            warnings.warn(
+                f"pxts: Inferred calendar frequency '{cal_freq}' from data. "
+                f"Pass freq='{cal_freq}' explicitly to suppress this warning.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return cal_freq
+
+    if ambiguous_msg is not None:
+        fallback = to_offset(min_diff).freqstr
+        warnings.warn(
+            f"pxts: {ambiguous_msg} "
+            f"Falling back to '{fallback}'. Pass freq= explicitly to override.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     offset = to_offset(min_diff)
     if offset is None:
         raise ValueError(

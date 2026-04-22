@@ -7,7 +7,16 @@ import warnings
 import pandas as pd
 import pytest
 
-from pxts.core import infer_freq, set_tz, to_dense, validate_ts
+from pxts.core import (
+    _detect_monthly,
+    _detect_quarterly,
+    _detect_yearly,
+    _generate_imm_dates,
+    infer_freq,
+    set_tz,
+    to_dense,
+    validate_ts,
+)
 from pxts.exceptions import pxtsValidationError
 
 
@@ -293,3 +302,325 @@ def test_to_dense_auto_freq_single_row_raises():
     df = pd.DataFrame({"v": [1.0]}, index=idx)
     with pytest.raises(ValueError):
         to_dense(df)
+
+
+# ---------------------------------------------------------------------------
+# Calendar frequency detection helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_df(dates):
+    idx = pd.DatetimeIndex(dates)
+    return pd.DataFrame({"v": range(len(dates))}, index=idx)
+
+
+# --- monthly ---
+
+def test_detect_monthly_month_start():
+    idx = pd.DatetimeIndex(["2000-01-01", "2000-02-01", "2000-03-01"])
+    assert _detect_monthly(idx) == "MS"
+
+
+def test_detect_monthly_month_end():
+    # Includes Feb 29 (leap year) to verify end-of-month varies per month
+    idx = pd.DatetimeIndex(["2000-01-31", "2000-02-29", "2000-03-31"])
+    assert _detect_monthly(idx) == "ME"
+
+
+def test_detect_monthly_month_end_non_leap():
+    idx = pd.DatetimeIndex(["2001-01-31", "2001-02-28", "2001-03-31"])
+    assert _detect_monthly(idx) == "ME"
+
+
+def test_detect_monthly_mid_month_returns_none():
+    idx = pd.DatetimeIndex(["2000-01-15", "2000-02-15"])
+    assert _detect_monthly(idx) is None
+
+
+# --- quarterly ---
+
+def test_detect_quarterly_qs_standard():
+    idx = pd.DatetimeIndex(["2000-01-01", "2000-04-01", "2000-07-01", "2000-10-01"])
+    assert _detect_quarterly(idx) == "QS"
+
+
+def test_detect_quarterly_qs_feb():
+    idx = pd.DatetimeIndex(["2000-02-01", "2000-05-01", "2000-08-01", "2000-11-01"])
+    assert _detect_quarterly(idx) == "QS-FEB"
+
+
+def test_detect_quarterly_qs_mar():
+    idx = pd.DatetimeIndex(["2000-03-01", "2000-06-01", "2000-09-01", "2000-12-01"])
+    assert _detect_quarterly(idx) == "QS-MAR"
+
+
+def test_detect_quarterly_qe_standard():
+    idx = pd.DatetimeIndex(["2000-03-31", "2000-06-30", "2000-09-30", "2000-12-31"])
+    assert _detect_quarterly(idx) == "QE"
+
+
+def test_detect_quarterly_qe_oct():
+    idx = pd.DatetimeIndex(["2000-01-31", "2000-04-30", "2000-07-31", "2000-10-31"])
+    assert _detect_quarterly(idx) == "QE-OCT"
+
+
+def test_detect_quarterly_qe_nov():
+    # Feb 29 (leap) end-of-month included
+    idx = pd.DatetimeIndex(["2000-02-29", "2000-05-31", "2000-08-31", "2000-11-30"])
+    assert _detect_quarterly(idx) == "QE-NOV"
+
+
+def test_detect_quarterly_imm_2000():
+    # 3rd Wednesday of Mar/Jun/Sep/Dec 2000: Mar-15, Jun-21, Sep-20, Dec-20
+    idx = pd.DatetimeIndex(["2000-03-15", "2000-06-21", "2000-09-20", "2000-12-20"])
+    assert _detect_quarterly(idx) == "IMM"
+
+
+def test_detect_quarterly_imm_partial_two_dates():
+    # Two consecutive IMM dates still detected
+    idx = pd.DatetimeIndex(["2000-03-15", "2000-06-21"])
+    assert _detect_quarterly(idx) == "IMM"
+
+
+def test_detect_quarterly_non_wednesday_returns_none():
+    # Same months as IMM but not Wednesdays → not IMM, not QS, not QE
+    idx = pd.DatetimeIndex(["2000-03-16", "2000-06-22"])  # Thursdays
+    assert _detect_quarterly(idx) is None
+
+
+# --- yearly ---
+
+def test_detect_yearly_ys():
+    idx = pd.DatetimeIndex(["2000-01-01", "2001-01-01", "2002-01-01"])
+    assert _detect_yearly(idx) == "YS"
+
+
+def test_detect_yearly_ye():
+    idx = pd.DatetimeIndex(["2000-12-31", "2001-12-31", "2002-12-31"])
+    assert _detect_yearly(idx) == "YE"
+
+
+def test_detect_yearly_ys_non_standard():
+    idx = pd.DatetimeIndex(["2000-04-01", "2001-04-01", "2002-04-01"])
+    assert _detect_yearly(idx) == "YS-APR"
+
+
+def test_detect_yearly_ye_non_standard():
+    idx = pd.DatetimeIndex(["2000-03-31", "2001-03-31", "2002-03-31"])
+    assert _detect_yearly(idx) == "YE-MAR"
+
+
+def test_detect_yearly_ye_feb_leap_variation():
+    # Feb end-of-month: 2000-02-29 (leap), 2001-02-28, 2002-02-28
+    idx = pd.DatetimeIndex(["2000-02-29", "2001-02-28", "2002-02-28"])
+    assert _detect_yearly(idx) == "YE-FEB"
+
+
+def test_detect_yearly_mid_month_returns_none():
+    idx = pd.DatetimeIndex(["2000-03-15", "2001-03-15"])
+    assert _detect_yearly(idx) is None
+
+
+def test_detect_yearly_mixed_months_returns_none():
+    idx = pd.DatetimeIndex(["2000-01-01", "2001-04-01"])
+    assert _detect_yearly(idx) is None
+
+
+# ---------------------------------------------------------------------------
+# infer_freq — calendar detection + warnings
+# ---------------------------------------------------------------------------
+
+
+def test_infer_freq_monthly_start_warns_and_returns_ms():
+    # 2000-01-01 → 2000-02-01: 31 days (in [28,31])
+    df = _make_df(["2000-01-01", "2000-02-01", "2000-03-01"])
+    with pytest.warns(UserWarning, match="'MS'"):
+        result = infer_freq(df)
+    assert result == "MS"
+
+
+def test_infer_freq_monthly_end_warns_and_returns_me():
+    df = _make_df(["2000-01-31", "2000-02-29", "2000-03-31"])
+    with pytest.warns(UserWarning, match="'ME'"):
+        result = infer_freq(df)
+    assert result == "ME"
+
+
+def test_infer_freq_quarterly_start_warns_and_returns_qs():
+    # Jan-01 → Apr-01: 91 days (2000 leap)
+    df = _make_df(["2000-01-01", "2000-04-01", "2000-07-01", "2000-10-01"])
+    with pytest.warns(UserWarning, match="'QS'"):
+        result = infer_freq(df)
+    assert result == "QS"
+
+
+def test_infer_freq_quarterly_end_warns_and_returns_qe():
+    df = _make_df(["2000-03-31", "2000-06-30", "2000-09-30", "2000-12-31"])
+    with pytest.warns(UserWarning, match="'QE'"):
+        result = infer_freq(df)
+    assert result == "QE"
+
+
+def test_infer_freq_imm_warns_and_returns_imm():
+    df = _make_df(["2000-03-15", "2000-06-21", "2000-09-20", "2000-12-20"])
+    with pytest.warns(UserWarning, match="IMM"):
+        result = infer_freq(df)
+    assert result == "IMM"
+
+
+def test_infer_freq_yearly_start_warns_and_returns_ys():
+    # 2000-01-01 → 2001-01-01: 366 days (leap year)
+    df = _make_df(["2000-01-01", "2001-01-01", "2002-01-01"])
+    with pytest.warns(UserWarning, match="'YS'"):
+        result = infer_freq(df)
+    assert result == "YS"
+
+
+def test_infer_freq_yearly_end_warns_and_returns_ye():
+    df = _make_df(["2000-12-31", "2001-12-31", "2002-12-31"])
+    with pytest.warns(UserWarning, match="'YE'"):
+        result = infer_freq(df)
+    assert result == "YE"
+
+
+_CALENDAR_ALIASES = {"MS", "ME", "QS", "QE", "YS", "YE", "IMM"}
+
+
+def test_infer_freq_ambiguous_monthly_warns_and_falls_back():
+    # Mid-month dates: gap 31 days but not MS or ME
+    df = _make_df(["2000-01-15", "2000-02-15"])
+    with pytest.warns(UserWarning, match="looks monthly"):
+        result = infer_freq(df)
+    assert result not in _CALENDAR_ALIASES  # falls back to a fixed-duration alias
+
+
+def test_infer_freq_ambiguous_quarterly_warns_and_falls_back():
+    # 2000-03-16 and 2000-06-22 are Thursdays: in IMM months but wrong weekday
+    df = _make_df(["2000-03-16", "2000-06-22"])
+    with pytest.warns(UserWarning, match="looks quarterly"):
+        result = infer_freq(df)
+    assert result not in _CALENDAR_ALIASES
+
+
+def test_infer_freq_ambiguous_yearly_warns_and_falls_back():
+    # 2000 is leap: Mar-15 to Mar-15 next year = 366 days
+    df = _make_df(["2000-03-15", "2001-03-15"])
+    with pytest.warns(UserWarning, match="looks yearly"):
+        result = infer_freq(df)
+    assert result not in _CALENDAR_ALIASES
+
+
+def test_infer_freq_daily_emits_no_calendar_warning():
+    # Existing daily detection must not accidentally warn about calendar freq
+    idx = pd.date_range("2024-01-01", periods=5, freq="D")
+    df = pd.DataFrame({"v": range(5)}, index=idx)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        infer_freq(df)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# _generate_imm_dates
+# ---------------------------------------------------------------------------
+
+
+def test_generate_imm_dates_full_year_2000():
+    # All four 2000 IMM dates plus the first 2001 date (one beyond Dec-20)
+    result = _generate_imm_dates(pd.Timestamp("2000-03-15"), pd.Timestamp("2000-12-20"))
+    expected = pd.DatetimeIndex([
+        "2000-03-15", "2000-06-21", "2000-09-20", "2000-12-20", "2001-03-21",
+    ])
+    assert list(result) == list(expected)
+
+
+def test_generate_imm_dates_mid_year_start():
+    # Starting mid-year: Sep and Dec 2000, then Mar 2001 (one beyond Dec-20)
+    result = _generate_imm_dates(pd.Timestamp("2000-09-20"), pd.Timestamp("2000-12-20"))
+    expected = pd.DatetimeIndex(["2000-09-20", "2000-12-20", "2001-03-21"])
+    assert list(result) == list(expected)
+
+
+def test_generate_imm_dates_extends_one_beyond_end():
+    # end is exactly the last IMM date; next one must be appended
+    result = _generate_imm_dates(pd.Timestamp("2000-12-20"), pd.Timestamp("2000-12-20"))
+    assert len(result) == 2
+    assert result[0] == pd.Timestamp("2000-12-20")
+    assert result[1] == pd.Timestamp("2001-03-21")
+
+
+# ---------------------------------------------------------------------------
+# to_dense with calendar frequencies
+# ---------------------------------------------------------------------------
+
+
+def test_to_dense_monthly_start_fills_gap():
+    # Missing Feb and Mar; auto-detected as MS
+    df = _make_df(["2000-01-01", "2000-02-01", "2000-04-01"])
+    with pytest.warns(UserWarning):
+        result = to_dense(df)
+    assert pd.Timestamp("2000-03-01") in result.index
+    assert pd.isna(result.loc["2000-03-01", "v"])
+
+
+def test_to_dense_monthly_end_explicit_no_warning():
+    # Explicit freq suppresses the warning
+    df = _make_df(["2000-01-31", "2000-02-29", "2000-04-30"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = to_dense(df, freq="ME")
+    assert pd.Timestamp("2000-03-31") in result.index
+
+
+def test_to_dense_quarterly_start_fills_gap():
+    # Missing Q3; auto-detected as QS
+    df = _make_df(["2000-01-01", "2000-04-01", "2000-10-01"])
+    with pytest.warns(UserWarning, match="'QS'"):
+        result = to_dense(df)
+    assert pd.Timestamp("2000-07-01") in result.index
+    assert pd.isna(result.loc["2000-07-01", "v"])
+
+
+def test_to_dense_quarterly_end_fills_gap():
+    df = _make_df(["2000-03-31", "2000-06-30", "2000-12-31"])
+    with pytest.warns(UserWarning, match="'QE'"):
+        result = to_dense(df)
+    assert pd.Timestamp("2000-09-30") in result.index
+
+
+def test_to_dense_yearly_start_fills_gap():
+    # Missing 2001; auto-detected as YS
+    df = _make_df(["2000-01-01", "2001-01-01", "2003-01-01"])
+    with pytest.warns(UserWarning, match="'YS'"):
+        result = to_dense(df)
+    assert pd.Timestamp("2002-01-01") in result.index
+    assert pd.isna(result.loc["2002-01-01", "v"])
+
+
+def test_to_dense_imm_fills_gap_and_extends():
+    # Input: Mar-15, Jun-21, Dec-20 — gap at Sep-20, extends to Mar-21 next year
+    df = _make_df(["2000-03-15", "2000-06-21", "2000-12-20"])
+    with pytest.warns(UserWarning, match="IMM"):
+        result = to_dense(df)
+    expected_index = pd.DatetimeIndex([
+        "2000-03-15", "2000-06-21", "2000-09-20", "2000-12-20", "2001-03-21",
+    ])
+    assert list(result.index) == list(expected_index)
+    assert pd.isna(result.loc["2000-09-20", "v"])   # gap filled with NaN
+    assert pd.isna(result.loc["2001-03-21", "v"])   # extended row is NaN
+
+
+def test_to_dense_imm_ffill():
+    df = _make_df(["2000-03-15", "2000-06-21", "2000-12-20"])
+    with pytest.warns(UserWarning):
+        result = to_dense(df, fill="ffill")
+    # Sep-20 gap should be forward-filled from Jun-21 value (index 1 → value 1)
+    assert result.loc["2000-09-20", "v"] == 1
+
+
+def test_to_dense_imm_explicit_no_warning():
+    # Passing freq='IMM' explicitly suppresses the warning
+    df = _make_df(["2000-03-15", "2000-06-21", "2000-12-20"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = to_dense(df, freq="IMM")
+    assert len(result) == 5
