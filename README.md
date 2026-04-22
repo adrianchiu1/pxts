@@ -29,6 +29,9 @@ pip install pxts[plot]
 
 # With Bloomberg BDH support (requires Bloomberg Terminal + API)
 pip install pxts[bloomberg]
+
+# With Macrobond Data API support
+pip install pxts[macrobond]
 ```
 
 ## Quick start
@@ -98,6 +101,30 @@ df = read_bdh(
 )
 ```
 
+### Macrobond
+
+Requires `pxts[macrobond]` and a valid Macrobond Data+ or Data Feed subscription.
+
+```python
+from pxts import read_mb
+
+# List — columns named by Macrobond FullDescription metadata
+df = read_mb(["hg_c1_cl", "hg_c2_cl", "hg_c3_cl"])
+
+# Single series
+df = read_mb("hg_c1_cl")
+
+# Dict — keys become output column names
+df = read_mb({"Copper 1M": "hg_c1_cl", "Copper 2M": "hg_c2_cl"})
+
+# Full history is returned; slice as needed
+df = read_mb(["hg_c1_cl"])["2020":]
+```
+
+Returns a wide-format DataFrame with a `DatetimeIndex`. Series with different
+start/end dates are aligned on the union of all dates; missing observations are
+filled with `NaN`.
+
 ## The `.ts` accessor
 
 Importing pxts registers a `.ts` accessor on `pd.DataFrame`:
@@ -133,6 +160,7 @@ freq = df.ts.infer_freq()
 | `read_ts(path, *, tz, date_format)` | Read CSV with auto-detected date parsing |
 | `write_ts(df, path, *, date_format)` | Write CSV in ISO 8601 format |
 | `read_bdh(tickers, start, field, end)` | Fetch Bloomberg BDH historical data |
+| `read_mb(series)` | Fetch Macrobond historical time series data |
 | `validate_ts(df)` | Assert DatetimeIndex; raises `pxtsValidationError` |
 | `set_tz(df, tz)` | Localize or convert index timezone |
 | `to_dense(df, freq, fill)` | Regularize sparse index to uniform frequency |
@@ -160,3 +188,4 @@ pxts applies an FT-inspired visual theme at import time to both backends:
 - cycler
 - Optional: `plotly >= 5.0`, `matplotlib >= 3.5`, `adjustText` — install with `pxts[plot]`
 - Optional: `pdblp` — install with `pxts[bloomberg]` (requires Bloomberg Terminal)
+- Optional: `macrobond-data-api` — install with `pxts[macrobond]` (requires Macrobond subscription)
