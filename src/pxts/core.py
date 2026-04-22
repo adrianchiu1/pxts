@@ -179,18 +179,55 @@ def to_dense(
 ) -> pd.DataFrame:
     """Regularize a sparse DatetimeIndex to equal intervals.
 
-    Uses pandas offset aliases: 'D' (calendar day), 'B' (business day),
-    'h' (hour), 'ME' (month end), etc.
+    Parameters
+    ----------
+    df : DataFrame with a DatetimeIndex.
+    freq : offset alias string, or None to infer automatically.
+    fill : None (new rows get NaN), 'ffill' (forward-fill), or 'bfill' (back-fill).
 
-    New rows receive NaN by default. Pass fill='ffill' or fill='bfill'
-    to forward- or back-fill values.
+    Supported freq aliases
+    ----------------------
+    Sub-day (fixed duration):
+      's'          second
+      'min'        minute
+      'h'          hour
+
+    Day:
+      'D'          calendar day
+      'B'          business day (Mon–Fri); auto-detection returns 'B' when all
+                   timestamps are weekdays — pass 'D' explicitly to override.
+
+    Week:
+      'W'          week ending Sunday
+      'W-MON' … 'W-SUN'   week ending on a named day
+
+    Month:
+      'MS'         month start (1st of each month)
+      'ME'         month end (last day of each month)
+
+    Quarter (standard calendar):
+      'QS'         quarter start — Jan/Apr/Jul/Oct 1
+      'QS-FEB'     quarter start — Feb/May/Aug/Nov 1
+      'QS-MAR'     quarter start — Mar/Jun/Sep/Dec 1
+      'QE'         quarter end   — Mar/Jun/Sep/Dec (last day)
+      'QE-OCT'     quarter end   — Jan/Apr/Jul/Oct (last day)
+      'QE-NOV'     quarter end   — Feb/May/Aug/Nov (last day)
+
+    Quarter (IMM convention):
+      'IMM'        3rd Wednesday of Mar/Jun/Sep/Dec.
+                   Extends index one IMM date beyond the series end.
+
+    Year:
+      'YS'         year start — Jan 1
+      'YS-{MON}'   year start anchored to month, e.g. 'YS-APR' for Apr 1
+      'YE'         year end   — Dec 31
+      'YE-{MON}'   year end anchored to month, e.g. 'YE-MAR' for Mar 31
+                   Month codes: JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC
+
+    If freq is None, the frequency is inferred automatically via infer_freq()
+    (see that function's docstring for detection rules and warnings).
 
     If the index is already at `freq`, returns df unchanged (no-op).
-
-    If freq is None, the frequency is inferred automatically via infer_freq().
-    Note: auto-detection cannot distinguish 'B' from 'D' if all timestamps
-    are weekdays — it will return 'B' in that case. Pass freq explicitly to
-    override.
     """
     validate_ts(df)
     if freq is None:
@@ -212,19 +249,55 @@ def to_dense(
 def infer_freq(df: pd.DataFrame) -> str:
     """Infer the minimum observed interval in the DatetimeIndex.
 
-    Returns a pandas offset alias string ('D', 'h', 'ME', 'QS', 'IMM', etc.)
-    directly usable in to_dense() and pandas resampling.
+    Returns an offset alias string directly usable in to_dense() and pandas
+    resampling.  Uses min(index.diff().dropna()) so the most granular gap
+    present drives detection, preventing data loss when densifying.
 
-    Uses the minimum diff approach: min(index.diff().dropna()). This returns
-    the most granular interval present, which prevents data loss when densifying.
+    Detection rules and returned aliases
+    -------------------------------------
+    Min gap == 1 day:
+      'D'   if any timestamp falls on a weekend (calendar day)
+      'B'   if all timestamps are weekdays (business day)
+            — pass freq='D' to to_dense() explicitly to override.
 
-    Calendar-based frequencies (monthly, quarterly, yearly, IMM) are detected
-    from date alignment and emit a UserWarning so callers know the freq was
-    inferred. Pass freq= explicitly to to_dense() to suppress the warning.
+    Min gap 28–31 days (monthly range):
+      'MS'  all dates are the 1st of their month
+      'ME'  all dates are the last day of their month
+            (handles Feb 28/29 leap-year variation correctly)
+      Warns and falls back to a fixed-duration alias (e.g. '31D') if dates
+      don't align to month-start or month-end.
 
-    Limitation: Cannot distinguish 'B' (business day) from 'D' (calendar day)
-    because a 1-day timedelta maps to Day, not BusinessDay. Pass freq='B' to
-    to_dense() explicitly.
+    Min gap 84–98 days (quarterly range — wider than 90–92 to cover all
+    possible IMM spreads caused by the 3rd-Wednesday shift):
+      'IMM'     all dates are the 3rd Wednesday of Mar/Jun/Sep/Dec
+      'QS'      all dates are day 1 of Jan/Apr/Jul/Oct
+      'QS-FEB'  all dates are day 1 of Feb/May/Aug/Nov
+      'QS-MAR'  all dates are day 1 of Mar/Jun/Sep/Dec
+      'QE'      all dates are month-end of Mar/Jun/Sep/Dec
+      'QE-OCT'  all dates are month-end of Jan/Apr/Jul/Oct
+      'QE-NOV'  all dates are month-end of Feb/May/Aug/Nov
+      IMM is tested before QS-MAR because they share the same months.
+      Warns and falls back to a fixed-duration alias if no pattern matches.
+
+    Min gap 365–366 days (yearly range):
+      'YS'          all dates are Jan 1
+      'YS-{MON}'    all dates are the 1st of the same non-January month
+                    e.g. 'YS-APR' for Apr 1 every year
+      'YE'          all dates are Dec 31
+      'YE-{MON}'    all dates are month-end of the same non-December month
+                    e.g. 'YE-FEB' (handles Feb 28/29 per year correctly)
+      Month codes: JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC
+      Warns and falls back to a fixed-duration alias if no pattern matches.
+
+    Any other min gap:
+      Passed through pandas to_offset(); returns whatever alias pandas maps
+      the timedelta to (e.g. 'h', 'min', 's', '6h', 'W').
+
+    Warnings
+    --------
+    A UserWarning is emitted whenever a calendar-based alias is inferred
+    (monthly, quarterly, yearly, or IMM) so callers are aware the freq was
+    guessed.  Pass freq= explicitly to to_dense() to suppress the warning.
 
     Raises ValueError if fewer than 2 data points (cannot compute diffs).
     """
