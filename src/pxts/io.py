@@ -6,7 +6,7 @@ Public API:
     read_bdh(tickers, start, field='PX_LAST', end=None) -> pd.DataFrame
     read_mb(series) -> pd.DataFrame
     read_xlsx(path, *, tz=None, date_format=None, datetime_col='A',
-              colname_row=1, values_ref=None, sheet=0) -> pd.DataFrame
+              colname_row=1, values_ref=None, sheet=None) -> pd.DataFrame
 
 Internal:
     _detect_date_format(sample) -> tuple[str, bool]
@@ -375,7 +375,7 @@ def read_xlsx(
     datetime_col: str = "A",
     colname_row: int = 1,
     values_ref: str | None = None,
-    sheet: Union[str, int] = 0,
+    sheet: str | None = None,
 ) -> pd.DataFrame:
     """Read an Excel (.xlsx or .xlsm) file into a DataFrame with a DatetimeIndex.
 
@@ -413,8 +413,8 @@ def read_xlsx(
         Excel range for the data values, e.g. ``'B2:BF2854'``. Does not
         include the index column or header row — those come from *datetime_col*
         and *colname_row*. If ``None``, the range is auto-detected.
-    sheet : str or int
-        Sheet to read, by name or 0-based position. Default ``0`` (first sheet).
+    sheet : str or None
+        Sheet name to read. If ``None``, the first sheet is used.
 
     Returns
     -------
@@ -453,10 +453,7 @@ def read_xlsx(
 
     wb = openpyxl.load_workbook(path, data_only=True)
 
-    if isinstance(sheet, int):
-        ws = wb.worksheets[sheet]
-    else:
-        ws = wb[sheet]
+    ws = wb.worksheets[0] if sheet is None else wb[sheet]
 
     datetime_col_idx = column_index_from_string(datetime_col.upper())
 
