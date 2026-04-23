@@ -1,16 +1,19 @@
-"""pxts I/O layer — read_csv, write_csv, read_bdh, and read_mb.
+"""pxts I/O layer — read_csv, write_csv, read_bdh, read_mb, and read_xlsx.
 
 Public API:
     read_csv(path, *, tz=None, date_format=None) -> pd.DataFrame
     write_csv(df, path, *, date_format=None) -> None
     read_bdh(tickers, start, field='PX_LAST', end=None) -> pd.DataFrame
     read_mb(series) -> pd.DataFrame
+    read_xlsx(path, *, tz=None, date_format=None, datetime_col='A',
+              colname_row=1, values_ref=None, sheet=None) -> pd.DataFrame
 
 Internal:
     _detect_date_format(sample) -> tuple[str, bool]
 """
 from __future__ import annotations
 
+import datetime
 import re
 import warnings
 from pathlib import Path
@@ -362,3 +365,222 @@ def read_mb(series) -> pd.DataFrame:
         df_wide = df_wide[ordered_cols]
 
     return validate_ts(df_wide)
+
+
+def read_xlsx(
+    path: Union[str, Path],
+    *,
+    tz: str | None = None,
+    date_format: str | None = None,
+    datetime_col: str = "A",
+    colname_row: int = 1,
+    values_ref: str | None = None,
+    sheet: str | None = None,
+) -> pd.DataFrame:
+    """Read an Excel (.xlsx or .xlsm) file into a DataFrame with a DatetimeIndex.
+
+    One column supplies the datetime index; one row supplies column headers.
+    Columns whose header cell is empty or whitespace-only are silently skipped.
+
+    When *values_ref* is omitted the data extent is auto-detected:
+    - Columns: scan *colname_row* rightward from the column after *datetime_col*;
+      the range ends at the last non-empty header cell (empty cells in between
+      are skipped, not treated as terminators).
+    - Rows: scan *datetime_col* downward from *colname_row* + 1; stop at the
+      first empty cell.
+
+    When *values_ref* is supplied (e.g. ``'B2:BF2854'``) those bounds drive
+    which rows and columns are read for data values. *datetime_col* and
+    *colname_row* are still used to pull the index values and column names
+    respectively.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to the Excel file. ``.xlsx`` and ``.xlsm`` are accepted;
+        ``.xls`` raises ``ValueError``.
+    tz : str or None
+        Timezone to localize (or convert) the index to, e.g. ``'US/Eastern'``.
+    date_format : str or None
+        Explicit strptime format string (e.g. ``'%Y-%m-%d'``). If ``None``,
+        auto-detected from the first value in *datetime_col* when dates are
+        stored as strings; ignored when openpyxl returns native datetime objects.
+    datetime_col : str
+        Excel column letter(s) that contains the datetime index. Default ``'A'``.
+    colname_row : int
+        1-indexed row number containing the column headers. Default ``1``.
+    values_ref : str or None
+        Excel range for the data values, e.g. ``'B2:BF2854'``. Does not
+        include the index column or header row — those come from *datetime_col*
+        and *colname_row*. If ``None``, the range is auto-detected.
+    sheet : str or None
+        Sheet name to read. If ``None``, the first sheet is used.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with a DatetimeIndex.
+
+    Raises
+    ------
+    ValueError
+        If the file has a ``.xls`` extension, or if no data is found.
+    ImportError
+        If openpyxl is not installed.
+    """
+    try:
+        import openpyxl
+        from openpyxl.utils import column_index_from_string
+        from openpyxl.utils.cell import range_boundaries
+    except ImportError:
+        raise ImportError(
+            "openpyxl is required for read_xlsx(). "
+            "Install with: pip install pxts[excel]"
+        )
+
+    path = Path(path)
+    suffix = path.suffix.lower()
+
+    if suffix == ".xls":
+        raise ValueError(
+            "read_xlsx() does not support legacy .xls files. "
+            "Save the file as .xlsx or .xlsm first."
+        )
+    if suffix not in (".xlsx", ".xlsm"):
+        raise ValueError(
+            f"read_xlsx() expects a .xlsx or .xlsm file, got '{suffix}'."
+        )
+
+    wb = openpyxl.load_workbook(path, data_only=True)
+
+    ws = wb.worksheets[0] if sheet is None else wb[sheet]
+
+    datetime_col_idx = column_index_from_string(datetime_col.upper())
+
+    # ------------------------------------------------------------------
+    # Determine the values range
+    # ------------------------------------------------------------------
+    if values_ref is not None:
+        min_col, data_start_row, max_col, data_end_row = range_boundaries(
+            values_ref.upper()
+        )
+    else:
+        # Scan colname_row rightward to find the extent of non-empty headers.
+        first_data_col: int | None = None
+        last_data_col: int | None = None
+        for col_idx in range(datetime_col_idx + 1, (ws.max_column or 0) + 1):
+            val = ws.cell(row=colname_row, column=col_idx).value
+            if val is not None and str(val).strip():
+                if first_data_col is None:
+                    first_data_col = col_idx
+                last_data_col = col_idx
+
+        if first_data_col is None:
+            raise ValueError(
+                f"read_xlsx(): no column headers found in row {colname_row} "
+                f"beyond column '{datetime_col}'."
+            )
+
+        min_col = first_data_col
+        max_col = last_data_col  # type: ignore[assignment]
+
+        # Scan datetime_col downward from colname_row+1; stop at first empty.
+        data_start_row = colname_row + 1
+        data_end_row = colname_row  # sentinel — updated in the loop
+        for row_idx in range(data_start_row, (ws.max_row or 0) + 1):
+            val = ws.cell(row=row_idx, column=datetime_col_idx).value
+            if val is None or (isinstance(val, str) and not val.strip()):
+                break
+            data_end_row = row_idx
+
+        if data_end_row < data_start_row:
+            raise ValueError(
+                f"read_xlsx(): no data rows found in column '{datetime_col}' "
+                f"starting from row {data_start_row}."
+            )
+
+    # ------------------------------------------------------------------
+    # Build column-name map, skipping empty / whitespace-only headers
+    # ------------------------------------------------------------------
+    col_map: dict[int, str] = {}
+    for col_idx in range(min_col, max_col + 1):
+        val = ws.cell(row=colname_row, column=col_idx).value
+        if val is not None and str(val).strip():
+            col_map[col_idx] = str(val).strip()
+
+    if not col_map:
+        raise ValueError(
+            "read_xlsx(): all column headers in the values range are empty."
+        )
+
+    # Preserve the name of the index column (mirrors read_ts behaviour).
+    _index_name_val = ws.cell(row=colname_row, column=datetime_col_idx).value
+    index_name = str(_index_name_val).strip() if _index_name_val is not None else None
+
+    col_indices = list(col_map.keys())
+    col_names = list(col_map.values())
+
+    # ------------------------------------------------------------------
+    # Read rows: datetime values + data values
+    # ------------------------------------------------------------------
+    dt_raw: list = []
+    rows_data: list[list] = []
+
+    for row_idx in range(data_start_row, data_end_row + 1):
+        dt_cell = ws.cell(row=row_idx, column=datetime_col_idx).value
+        if dt_cell is None or (isinstance(dt_cell, str) and not dt_cell.strip()):
+            continue
+        dt_raw.append(dt_cell)
+        rows_data.append(
+            [ws.cell(row=row_idx, column=c).value for c in col_indices]
+        )
+
+    if not dt_raw:
+        raise ValueError("read_xlsx(): no data rows found.")
+
+    # ------------------------------------------------------------------
+    # Parse datetime index
+    # ------------------------------------------------------------------
+    first_val = dt_raw[0]
+
+    if date_format is not None:
+        str_dates = [str(v) for v in dt_raw]
+        if date_format == "ISO8601":
+            index = pd.to_datetime(str_dates, format="ISO8601")
+        else:
+            index = pd.to_datetime(str_dates, format=date_format)
+    elif isinstance(first_val, (datetime.datetime, datetime.date)):
+        # openpyxl already parsed date-formatted cells into Python objects.
+        index = pd.to_datetime(dt_raw)
+    elif isinstance(first_val, (int, float)):
+        # Excel serial date numbers (rare with data_only=True, but possible).
+        converted = [
+            datetime.datetime(1899, 12, 30) + datetime.timedelta(days=float(v))
+            for v in dt_raw
+        ]
+        index = pd.to_datetime(converted)
+    else:
+        # String dates — reuse the same auto-detection logic as read_ts.
+        str_dates = [str(v) for v in dt_raw]
+        detected_format, dayfirst = _detect_date_format(str_dates[0])
+        if detected_format == "ISO8601":
+            index = pd.to_datetime(str_dates, format="ISO8601")
+        elif detected_format == "mixed":
+            index = pd.to_datetime(str_dates, format="mixed", dayfirst=dayfirst)
+        else:
+            index = pd.to_datetime(str_dates, format=detected_format, dayfirst=dayfirst)
+
+    index.name = index_name
+
+    # ------------------------------------------------------------------
+    # Build and return DataFrame
+    # ------------------------------------------------------------------
+    df = pd.DataFrame(rows_data, index=index, columns=col_names)
+
+    if tz is not None:
+        if df.index.tz is None:
+            df.index = df.index.tz_localize(tz)
+        else:
+            df.index = df.index.tz_convert(tz)
+
+    return validate_ts(df)
