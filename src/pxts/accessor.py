@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from pxts.core import infer_freq, set_tz, to_dense, validate_ts  # noqa: F401
-from pxts.io import write_ts as _write_ts, read_bdh as _read_bdh
+from pxts.io import write_csv as _write_csv, read_bdh as _read_bdh
 from pxts.plots import tsplot as _plot
 
 
@@ -43,9 +43,9 @@ class TsAccessor:
         """Infer minimum observed interval as a pandas offset alias. See pxts.core.infer_freq."""
         return infer_freq(self._obj)
 
-    def write_ts(self, path: str | Path, *, date_format: str | None = None) -> None:
-        """Write this DataFrame to CSV. See pxts.io.write_ts for details."""
-        _write_ts(self._obj, path, date_format=date_format)
+    def write_csv(self, path: str | Path, *, date_format: str | None = None) -> None:
+        """Write this DataFrame to CSV. See pxts.io.write_csv for details."""
+        _write_csv(self._obj, path, date_format=date_format)
 
     def read_bdh(self, tickers, start="2000-01-01", field: str = "PX_LAST", end=None) -> pd.DataFrame:
         """Fetch Bloomberg BDH historical data. See pxts.io.read_bdh for details."""

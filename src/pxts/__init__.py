@@ -10,8 +10,8 @@ Public API (all accessible via star import):
   to_dense(df, freq, fill=None)  — regularize sparse index
   infer_freq(df)                  — infer minimum interval
   pxtsValidationError            — exception class
-  read_ts(path)                   — read CSV into validated DataFrame
-  write_ts(df, path)              — write DataFrame to CSV
+  read_csv(path)                  — read CSV into validated DataFrame
+  write_csv(df, path)             — write DataFrame to CSV
   read_bdh(tickers, start, field='PX_LAST', end=None) — fetch Bloomberg BDH data
   read_mb(series)                 — fetch Macrobond time series data
   get_backend()                   — return active backend name ('plotly' or 'matplotlib')
@@ -44,7 +44,7 @@ if _pandas_version < _PANDAS_MIN:
 from pxts.exceptions import pxtsValidationError  # noqa: E402
 from pxts.core import validate_ts, set_tz, to_dense, infer_freq  # noqa: E402
 from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .ts accessor
-from pxts.io import read_ts, write_ts, read_bdh, read_mb  # noqa: E402
+from pxts.io import read_csv, write_csv, read_bdh, read_mb  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme, FT_COLORS, OKABE_ITO_COLORS  # noqa: E402
 from pxts.plots import tsplot  # noqa: E402
@@ -57,8 +57,8 @@ __all__ = [
     "to_dense",
     "infer_freq",
     "pxtsValidationError",
-    "read_ts",
-    "write_ts",
+    "read_csv",
+    "write_csv",
     "read_bdh",
     "read_mb",
     "get_backend",

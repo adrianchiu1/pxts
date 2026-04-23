@@ -40,9 +40,9 @@ class TestDelegation:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_write_ts_delegates(self, ts_df, tmp_path):
+    def test_write_csv_delegates(self, ts_df, tmp_path):
         path = tmp_path / "out.csv"
-        ts_df.ts.write_ts(path)
+        ts_df.ts.write_csv(path)
         assert path.exists()
 
     def test_plot_delegates(self, ts_df):

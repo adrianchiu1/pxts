@@ -39,11 +39,11 @@ pip install pxts[macrobond]
 ### Read and write CSVs
 
 ```python
-from pxts import read_ts, write_ts
+from pxts import read_csv, write_csv
 
-df = read_ts("prices.csv")            # date format auto-detected
-df = read_ts("prices.csv", tz="UTC")  # localize to UTC
-write_ts(df, "prices_out.csv")        # ISO 8601 round-trip
+df = read_csv("prices.csv")            # date format auto-detected
+df = read_csv("prices.csv", tz="UTC")  # localize to UTC
+write_csv(df, "prices_out.csv")        # ISO 8601 round-trip
 ```
 
 ### Core utilities
@@ -157,8 +157,8 @@ freq = df.ts.infer_freq()
 
 | Function | Description |
 |---|---|
-| `read_ts(path, *, tz, date_format)` | Read CSV with auto-detected date parsing |
-| `write_ts(df, path, *, date_format)` | Write CSV in ISO 8601 format |
+| `read_csv(path, *, tz, date_format)` | Read CSV with auto-detected date parsing |
+| `write_csv(df, path, *, date_format)` | Write CSV in ISO 8601 format |
 | `read_bdh(tickers, start, field, end)` | Fetch Bloomberg BDH historical data |
 | `read_mb(series)` | Fetch Macrobond historical time series data |
 | `validate_ts(df)` | Assert DatetimeIndex; raises `pxtsValidationError` |
@@ -172,7 +172,7 @@ freq = df.ts.infer_freq()
 
 ## Date format behavior
 
-ISO 8601 (`YYYY-MM-DD`) is unambiguous and detected automatically. For slash-delimited dates, pxts defaults to British format (`DD/MM/YYYY`) when ambiguous and emits a `UserWarning`. Override explicitly for US dates: `read_ts("prices.csv", date_format='%m/%d/%Y')`.
+ISO 8601 (`YYYY-MM-DD`) is unambiguous and detected automatically. For slash-delimited dates, pxts defaults to British format (`DD/MM/YYYY`) when ambiguous and emits a `UserWarning`. Override explicitly for US dates: `read_csv("prices.csv", date_format='%m/%d/%Y')`.
 
 ## Theme
 
