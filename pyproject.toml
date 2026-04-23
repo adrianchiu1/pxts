@@ -23,6 +23,7 @@ dependencies = ["pandas>=2.0", "cycler"]
 plot = ["plotly>=5.0", "matplotlib>=3.5", "adjustText"]
 dev = ["pytest>=7.0", "plotly>=5.0", "matplotlib>=3.5", "adjustText"]
 bloomberg = ["pdblp"]
+excel = ["openpyxl>=3.0"]
 
 [project.urls]
 Homepage = "https://github.com/adrianchiu1/pxts"

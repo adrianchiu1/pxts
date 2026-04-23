@@ -12,6 +12,7 @@ Public API (all accessible via star import):
   pxtsValidationError            — exception class
   read_csv(path)                  — read CSV into validated DataFrame
   write_csv(df, path)             — write DataFrame to CSV
+  read_xlsx(path)                 — read Excel (.xlsx/.xlsm) into validated DataFrame
   read_bdh(tickers, start, field='PX_LAST', end=None) — fetch Bloomberg BDH data
   read_mb(series)                 — fetch Macrobond time series data
   get_backend()                   — return active backend name ('plotly' or 'matplotlib')
@@ -44,7 +45,7 @@ if _pandas_version < _PANDAS_MIN:
 from pxts.exceptions import pxtsValidationError  # noqa: E402
 from pxts.core import validate_ts, set_tz, to_dense, infer_freq  # noqa: E402
 from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .ts accessor
-from pxts.io import read_csv, write_csv, read_bdh, read_mb  # noqa: E402
+from pxts.io import read_csv, write_csv, read_xlsx, read_bdh, read_mb  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme, FT_COLORS, OKABE_ITO_COLORS  # noqa: E402
 from pxts.plots import tsplot  # noqa: E402
@@ -59,6 +60,7 @@ __all__ = [
     "pxtsValidationError",
     "read_csv",
     "write_csv",
+    "read_xlsx",
     "read_bdh",
     "read_mb",
     "get_backend",
