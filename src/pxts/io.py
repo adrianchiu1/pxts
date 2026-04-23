@@ -1,8 +1,8 @@
-"""pxts I/O layer — read_ts, write_ts, read_bdh, and read_mb.
+"""pxts I/O layer — read_csv, write_csv, read_bdh, and read_mb.
 
 Public API:
-    read_ts(path, *, tz=None, date_format=None) -> pd.DataFrame
-    write_ts(df, path, *, date_format=None) -> None
+    read_csv(path, *, tz=None, date_format=None) -> pd.DataFrame
+    write_csv(df, path, *, date_format=None) -> None
     read_bdh(tickers, start, field='PX_LAST', end=None) -> pd.DataFrame
     read_mb(series) -> pd.DataFrame
 
@@ -66,14 +66,14 @@ def _detect_date_format(sample: str) -> tuple[str, bool]:
                 f"pxts: ambiguous date '{sample}' — assumed DD/MM/YYYY (British). "
                 f"Pass date_format='%m/%d/%Y' to override.",
                 UserWarning,
-                stacklevel=3,  # _detect_date_format -> read_ts -> user call site
+                stacklevel=3,  # _detect_date_format -> read_csv -> user call site
             )
             return ("%d/%m/%Y", True)
 
     return ("mixed", False)
 
 
-def read_ts(
+def read_csv(
     path: Union[str, Path],
     *,
     tz: str | None = None,
@@ -139,7 +139,7 @@ def read_ts(
     return df
 
 
-def write_ts(
+def write_csv(
     df: pd.DataFrame,
     path: Union[str, Path],
     *,
