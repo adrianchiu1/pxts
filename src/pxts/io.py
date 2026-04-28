@@ -264,11 +264,11 @@ def read_bdh(
 
 
 def read_mb(series) -> pd.DataFrame:
-    """Fetch Macrobond historical time series data.
+    """Fetch Macrobond historical time series data via the COM API.
 
-    Calls mda.get_series, normalises the response, and returns a validated
-    wide-format DataFrame with a DatetimeIndex and one column per series.
-    The full available history is returned; slice the result as needed.
+    Opens a ComClient session, fetches the requested series, and returns a
+    validated wide-format DataFrame with a DatetimeIndex and one column per
+    series.  The full available history is returned; slice the result as needed.
 
     Requires macrobond_data_api (optional dependency). Install with:
         pip install macrobond-data-api
@@ -301,7 +301,7 @@ def read_mb(series) -> pd.DataFrame:
         If the returned DataFrame does not have a DatetimeIndex.
     """
     try:
-        import macrobond_data_api as mda
+        from macrobond_data_api.com import ComClient
     except ImportError:
         raise ImportError(
             "macrobond_data_api required for read_mb(). "
@@ -317,11 +317,11 @@ def read_mb(series) -> pd.DataFrame:
             series = [series]
         series_list = list(series)
 
-    # Fetch entities from Macrobond (notebook cell 1)
     try:
-        entities = mda.get_series(series_list)
+        with ComClient() as api:
+            entities = api.get_series(series_list)
     except Exception as exc:
-        raise RuntimeError(f"macrobond_data_api.get_series failed: {exc}") from exc
+        raise RuntimeError(f"macrobond_data_api ComClient.get_series failed: {exc}") from exc
 
     # Defensive error check — get_series may return error entities rather than raising
     for entity in entities:
@@ -330,31 +330,24 @@ def read_mb(series) -> pd.DataFrame:
             msg = getattr(entity, "error_message", str(entity))
             raise ValueError(f"Macrobond series error — '{name}': {msg}")
 
-    # Normalise to a flat DataFrame (notebook cell 2)
-    df_raw = pd.json_normalize([x.to_dict() for x in entities])
+    # Build a pd.Series per entity directly from .dates / .values, then concat.
+    # entity.title is the FullDescription (handles list-valued metadata safely).
+    prim_to_full: dict[str, str] = {}
+    frame_parts: dict[str, pd.Series] = {}
+    for entity in entities:
+        prim_name: str = entity.name
+        full_desc: str = entity.title
+        prim_to_full[prim_name] = full_desc
+        frame_parts[full_desc] = pd.Series(
+            data=entity.values,
+            index=pd.to_datetime(entity.dates),
+            name=full_desc,
+            dtype=float,
+        )
 
-    # Explode Dates and Values into long format (notebook cell 3)
-    df_long = (
-        df_raw.set_index(["metadata.PrimName", "metadata.FullDescription"])[
-            ["Dates", "Values"]
-        ]
-        .apply(pd.Series.explode)
-        .reset_index()
-    )
-
-    # PrimName → FullDescription mapping used for column ordering
-    prim_to_full = dict(
-        zip(df_raw["metadata.PrimName"], df_raw["metadata.FullDescription"])
-    )
-
-    # Pivot to wide format; mismatched date ranges produce NaN automatically
-    df_wide = df_long.pivot(
-        index="Dates", columns="metadata.FullDescription", values="Values"
-    )
-    df_wide.index = pd.to_datetime(df_wide.index)
+    df_wide = pd.concat(frame_parts.values(), axis=1)
     df_wide.index.name = "date"
     df_wide.columns.name = None
-    df_wide = df_wide.astype(float)
 
     if rename_map is not None:
         full_to_new = {prim_to_full[v]: k for k, v in rename_map.items()}
