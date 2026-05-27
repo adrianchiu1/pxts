@@ -1,4 +1,4 @@
-"""pxts I/O layer — read_csv, write_csv, read_bdh, read_mb, and read_xlsx.
+"""pxts I/O layer — read_csv, write_csv, read_bdh, read_mb, read_xlsx, read_clipboard.
 
 Public API:
     read_csv(path, *, tz=None, date_format=None) -> pd.DataFrame
@@ -7,6 +7,7 @@ Public API:
     read_mb(series) -> pd.DataFrame
     read_xlsx(path, *, tz=None, date_format=None, datetime_col='A',
               colname_row=1, values_ref=None, sheet=None) -> pd.DataFrame
+    read_clipboard(*, tz=None, date_format=None, sep='\\t') -> pd.DataFrame
 
 Internal:
     _detect_date_format(sample) -> tuple[str, bool]
@@ -22,6 +23,7 @@ from typing import Union
 import pandas as pd
 
 from pxts.core import validate_ts
+from pxts.exceptions import pxtsValidationError
 
 # ---------------------------------------------------------------------------
 # Compiled regex patterns for date format detection
@@ -584,3 +586,151 @@ def read_xlsx(
             df.index = df.index.tz_convert(tz)
 
     return validate_ts(df)
+
+
+def _try_parse_datetime(val, date_format: str | None) -> bool:
+    """Return True if *val* parses as a datetime under the given format hint.
+
+    Used to decide whether the first row of clipboard data is a header row
+    or a data row. Numeric values are treated as non-datetime (clipboard
+    pastes from Excel/Sheets render dates as formatted strings, not serials).
+    """
+    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
+        return True
+    if val is None:
+        return False
+    if isinstance(val, float) and pd.isna(val):
+        return False
+    if not isinstance(val, str):
+        return False
+    s = val.strip()
+    if not s:
+        return False
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if date_format is None:
+                pd.to_datetime(s, errors="raise")
+            elif date_format == "ISO8601":
+                pd.to_datetime(s, format="ISO8601", errors="raise")
+            else:
+                pd.to_datetime(s, format=date_format, errors="raise")
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def read_clipboard(
+    *,
+    tz: str | None = None,
+    date_format: str | None = None,
+    sep: str = "\t",
+) -> pd.DataFrame:
+    """Read clipboard contents into a DataFrame with a DatetimeIndex.
+
+    Designed for data pasted from Excel, Google Sheets, or similar tools.
+    The first column becomes the datetime index. The first row is treated
+    as column headers when its first cell does not parse as a datetime;
+    otherwise the first row is treated as data and columns are unnamed.
+
+    Parameters
+    ----------
+    tz : str or None
+        If provided, localize (or convert) the index to this timezone.
+    date_format : str or None
+        Explicit strptime format string. If ``None``, the format is
+        auto-detected (ISO 8601, DD/MM/YYYY, MM/DD/YYYY).
+    sep : str
+        Column delimiter. Defaults to tab — the format Excel, Google
+        Sheets, and Numbers use when copying cells.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with a DatetimeIndex.
+
+    Raises
+    ------
+    pxtsValidationError
+        If the clipboard is empty, contains fewer than two columns, or
+        the first column cannot be coerced to a datetime.
+    """
+    raw = pd.read_clipboard(sep=sep, header=None, dtype=str)
+
+    if raw.empty:
+        raise pxtsValidationError("read_clipboard(): clipboard is empty.")
+    if raw.shape[1] < 2:
+        raise pxtsValidationError(
+            "read_clipboard(): need at least 2 columns "
+            "(datetime index + 1 value column)."
+        )
+
+    first_cell = raw.iat[0, 0]
+
+    if _try_parse_datetime(first_cell, date_format):
+        has_header = False
+    else:
+        if raw.shape[0] < 2:
+            raise pxtsValidationError(
+                "read_clipboard(): first cell is not datetime and there is no "
+                "second row to use as data."
+            )
+        second_cell = raw.iat[1, 0]
+        if not _try_parse_datetime(second_cell, date_format):
+            raise pxtsValidationError(
+                "read_clipboard(): first column is not datetime and cannot be "
+                f"coerced to datetime (sampled value: {second_cell!r})."
+            )
+        has_header = True
+
+    if has_header:
+        header_row = raw.iloc[0].tolist()
+        index_name = (
+            str(header_row[0]).strip()
+            if header_row[0] is not None and str(header_row[0]).strip()
+            else None
+        )
+        col_names = [str(c).strip() if c is not None else "" for c in header_row[1:]]
+        body = raw.iloc[1:].reset_index(drop=True)
+    else:
+        index_name = None
+        col_names = [str(i) for i in range(raw.shape[1] - 1)]
+        body = raw
+
+    raw_index = body.iloc[:, 0].tolist()
+    values = body.iloc[:, 1:].copy()
+    values.columns = col_names
+
+    str_dates = [str(v) for v in raw_index]
+    if date_format is not None:
+        if date_format == "ISO8601":
+            index = pd.to_datetime(str_dates, format="ISO8601")
+        else:
+            index = pd.to_datetime(str_dates, format=date_format)
+    else:
+        detected_format, dayfirst = _detect_date_format(str_dates[0])
+        if detected_format == "ISO8601":
+            index = pd.to_datetime(str_dates, format="ISO8601")
+        elif detected_format == "mixed":
+            index = pd.to_datetime(str_dates, format="mixed", dayfirst=dayfirst)
+        else:
+            index = pd.to_datetime(
+                str_dates, format=detected_format, dayfirst=dayfirst
+            )
+
+    index.name = index_name
+
+    for col in values.columns:
+        try:
+            values[col] = pd.to_numeric(values[col])
+        except (ValueError, TypeError):
+            pass
+    values.index = index
+
+    if tz is not None:
+        if values.index.tz is None:
+            values.index = values.index.tz_localize(tz)
+        else:
+            values.index = values.index.tz_convert(tz)
+
+    return validate_ts(values)
