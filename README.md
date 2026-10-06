@@ -159,7 +159,7 @@ freq = df.ts.infer_freq()
 |---|---|
 | `read_csv(path, *, tz, date_format)` | Read CSV with auto-detected date parsing |
 | `write_csv(df, path, *, date_format)` | Write CSV in ISO 8601 format |
-| `read_bdh(tickers, start, field, end)` | Fetch Bloomberg BDH historical data |
+| `read_bdh(tickers, start, field, end, timeout)` | Fetch Bloomberg BDH historical data |
 | `read_mb(series)` | Fetch Macrobond historical time series data |
 | `validate_ts(df)` | Assert DatetimeIndex; raises `pxtsValidationError` |
 | `set_tz(df, tz)` | Localize or convert index timezone |

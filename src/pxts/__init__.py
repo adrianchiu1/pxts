@@ -13,7 +13,7 @@ Public API (all accessible via star import):
   read_csv(path)                  — read CSV into validated DataFrame
   write_csv(df, path)             — write DataFrame to CSV
   read_xlsx(path)                 — read Excel (.xlsx/.xlsm) into validated DataFrame
-  read_bdh(tickers, start, field='PX_LAST', end=None) — fetch Bloomberg BDH data
+  read_bdh(tickers, start, field='PX_LAST', end=None, timeout=5) — fetch Bloomberg BDH data
   read_mb(series)                 — fetch Macrobond time series data
   get_backend()                   — return active backend name ('plotly' or 'matplotlib')
   IS_JUPYTER                      — bool, True if running in a Jupyter/IPython kernel

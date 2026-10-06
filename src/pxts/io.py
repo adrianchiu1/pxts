@@ -3,7 +3,7 @@
 Public API:
     read_csv(path, *, tz=None, date_format=None) -> pd.DataFrame
     write_csv(df, path, *, date_format=None) -> None
-    read_bdh(tickers, start, field='PX_LAST', end=None) -> pd.DataFrame
+    read_bdh(tickers, start, field='PX_LAST', end=None, timeout=5) -> pd.DataFrame
     read_mb(series) -> pd.DataFrame
     read_xlsx(path, *, tz=None, date_format=None, datetime_col='A',
               colname_row=1, values_ref=None, sheet=None) -> pd.DataFrame
@@ -182,6 +182,7 @@ def read_bdh(
     start="2000-01-01",
     field: str = "PX_LAST",
     end=None,
+    timeout: float = 5,
 ) -> pd.DataFrame:
     """Fetch Bloomberg BDH historical time series data.
 
@@ -205,6 +206,9 @@ def read_bdh(
         Bloomberg field name. Defaults to 'PX_LAST'.
     end : str, datetime, pd.Timestamp, or None
         End date (inclusive). Defaults to today when None.
+    timeout : float
+        Bloomberg request timeout in seconds. Defaults to 5. Increase this
+        for large requests (many tickers or long date ranges) that time out.
 
     Returns
     -------
@@ -243,7 +247,8 @@ def read_bdh(
         end_date = pd.to_datetime(end).strftime("%Y%m%d")
 
     # Establish a connection
-    con = pdblp.BCon(port=8194, timeout=5000)
+    # pdblp expects the timeout in milliseconds
+    con = pdblp.BCon(port=8194, timeout=int(timeout * 1000))
     con.start()
 
     # Get historical data for securities and fields

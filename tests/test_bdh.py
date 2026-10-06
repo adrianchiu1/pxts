@@ -108,6 +108,18 @@ class TestReadBdh:
         field_arg = call_args[0][1]
         assert field_arg == "PX_VOLUME"
 
+    @pytest.mark.parametrize("timeout_s, expected_ms", [(None, 5000), (30, 30000), (2.5, 2500)])
+    def test_timeout_passthrough(self, timeout_s, expected_ms):
+        """timeout (seconds) is forwarded to BCon as milliseconds; defaults to 5s."""
+        mock_pdblp, _ = _make_mock_pdblp(
+            _make_bdh_response(["AAPL US Equity"], "PX_LAST", ["2024-01-02"])
+        )
+        kwargs = {} if timeout_s is None else {"timeout": timeout_s}
+        with patch.dict(sys.modules, {"pdblp": mock_pdblp}):
+            read_bdh(["AAPL US Equity"], "20240101", **kwargs)
+
+        assert mock_pdblp.BCon.call_args.kwargs["timeout"] == expected_ms
+
     def test_con_always_stopped(self):
         """BCon.stop() is called even when bdh() raises an exception."""
         mock_pdblp = MagicMock()
