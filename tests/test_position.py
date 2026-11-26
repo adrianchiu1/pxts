@@ -18,6 +18,10 @@ from pxts.position import (
     _CANDLE_WIDTH,
     _VCANDLE_MAX,
     _candle_width_fracs,
+    _equity_runs,
+    _performance,
+    _PERF_OPTIONS,
+    _resolve_performance,
     _position_trades,
     posplot,
 )
@@ -451,6 +455,208 @@ class TestTickerInput:
                 fig = posplot("USGG10YR Index", position=pos_df["position"], kind="candle",
                               backend="plotly")
         assert "Close" in [t.name for t in fig.data]
+
+
+# ---------------------------------------------------------------------------
+# Performance: calculation
+# ---------------------------------------------------------------------------
+
+def _perf(close, position, **options):
+    return _performance(close, position, {**_PERF_OPTIONS, **options})
+
+
+class TestPerformanceCalc:
+    def test_position_earns_from_the_next_row(self):
+        # Position set on row 1 must not earn row 1's own +10% move.
+        perf = _perf([100, 110, 121], [0, 100, 100])
+        assert list(perf.held) == [0, 0, 100]
+        assert perf.pnl[1] == 0
+        assert perf.pnl[2] == pytest.approx(10.0)
+
+    def test_first_row_has_no_pnl(self):
+        perf = _perf([100, 110], [100, 100])
+        assert perf.pnl[0] == 0 and perf.equity[0] == 0
+        assert perf.equity[1] == pytest.approx(10.0)
+
+    def test_closing_a_position_still_earns_that_row(self):
+        # Position cut to 0 on row 2 was still held over the 1 -> 2 return.
+        perf = _perf([100, 100, 110, 121], [100, 100, 0, 0])
+        assert perf.pnl[2] == pytest.approx(10.0)
+        assert perf.pnl[3] == 0
+
+    def test_pnl_scales_with_position_size(self):
+        perf = _perf([100, 102], [50, 50])
+        assert perf.equity[-1] == pytest.approx(1.0)
+
+    def test_short_earns_when_price_falls(self):
+        perf = _perf([100, 90], [-100, -100])
+        assert perf.equity[-1] == pytest.approx(10.0)
+
+    def test_summed_by_default(self):
+        perf = _perf([100, 110, 121], [100, 100, 100])
+        assert perf.equity[-1] == pytest.approx(20.0)
+        assert perf.benchmark[-1] == pytest.approx(20.0)
+
+    def test_compound_option(self):
+        perf = _perf([100, 110, 121], [100, 100, 100], compound=True)
+        assert perf.equity[-1] == pytest.approx(21.0)
+        assert perf.benchmark[-1] == pytest.approx(21.0)
+
+    def test_benchmark_is_constant_full_long(self):
+        perf = _perf([100, 110, 99], [0, 0, 0])
+        assert perf.equity[-1] == 0
+        assert perf.benchmark[-1] == pytest.approx(10.0 - 10.0)
+
+    def test_long_and_short_sum_to_total(self):
+        close = [100, 104, 101, 97, 103, 108]
+        perf = _perf(close, [50, 100, -50, -100, 25, 0])
+        assert np.allclose(perf.long + perf.short, perf.equity)
+        assert perf.long[-1] != 0 and perf.short[-1] != 0
+
+    def test_high_water_mark_and_drawdown(self):
+        # equity: 0, +10, +0, +5  -> deepest drawdown 10 at row 2, from row 1
+        perf = _perf([100, 110, 99, 103.95], [100, 100, 100, 100])
+        assert np.allclose(perf.equity, [0, 10, 0, 5])
+        assert np.allclose(perf.high, [0, 10, 10, 10])
+        assert perf.drawdown == pytest.approx(10.0)
+        assert (perf.peak, perf.trough) == (1, 2)
+
+    def test_holding_periods_split_on_side(self):
+        # held: -, 100, 50, -50, -50, 0  -> one long period, one short, flat ignored
+        perf = _perf([100, 110, 121, 108.9, 98.01, 98.01], [100, 50, -50, -50, 0, 0])
+        assert [(q["side"], q["start"], q["end"]) for q in perf.periods] == [(1, 0, 2), (-1, 2, 4)]
+        assert perf.periods[0]["pnl"] == pytest.approx(10.0 + 5.0)
+        assert perf.periods[1]["pnl"] == pytest.approx(5.0 + 5.0)
+
+    def test_period_pnl_sums_to_total(self):
+        close = [100, 104, 101, 97, 103, 108, 105]
+        perf = _perf(close, [50, 100, 0, -100, 25, 25, 0])
+        assert sum(q["pnl"] for q in perf.periods) == pytest.approx(perf.equity[-1])
+
+    def test_equity_runs_cover_the_line_without_gaps(self):
+        perf = _perf([100, 101, 102, 103, 104, 105], [50, 50, 100, 100, -25, -25])
+        runs = _equity_runs(perf)
+        assert [held for _, _, held in runs] == [50, 100, -25]
+        assert runs[0][0] == 0 and runs[-1][1] == 5
+        assert all(a[1] == b[0] for a, b in zip(runs, runs[1:]))
+
+
+class TestPerformanceOptions:
+    def test_off(self):
+        assert _resolve_performance(False) is None
+        assert _resolve_performance(None) is None
+
+    def test_true_gives_defaults(self):
+        assert _resolve_performance(True) == _PERF_OPTIONS
+
+    def test_dict_overrides_defaults(self):
+        options = _resolve_performance({"periods": True})
+        assert options["periods"] is True and options["underwater"] is True
+
+    def test_benchmark_off_by_default(self):
+        assert _resolve_performance(True)["benchmark"] is False
+
+    def test_unknown_option(self):
+        with pytest.raises(ValueError, match="Unknown performance options"):
+            _resolve_performance({"sharpe": True})
+
+    def test_bad_type(self):
+        with pytest.raises(ValueError, match="bool or dict"):
+            _resolve_performance("yes")
+
+
+# ---------------------------------------------------------------------------
+# Performance: rendering
+# ---------------------------------------------------------------------------
+
+class TestPerformancePlotly:
+    def test_off_by_default(self, pos_df):
+        fig = posplot(pos_df, backend="plotly")
+        assert "P&L" not in [t.name for t in fig.data]
+        assert "yaxis4" not in fig.layout.to_plotly_json()
+
+    def test_adds_pane_and_height(self, pos_df):
+        base = posplot(pos_df, backend="plotly")
+        fig = posplot(pos_df, performance=True, backend="plotly")
+        assert fig.layout.height > base.layout.height
+        assert fig.layout.yaxis4.domain is not None
+        assert fig.layout.xaxis.anchor == "y4"
+
+    def test_equity_matches_calculation(self, pos_df):
+        fig = posplot(pos_df, performance={"benchmark": True}, backend="plotly")
+        expected = _perf(pos_df["close"], pos_df["position"])
+        assert np.allclose(_trace(fig, "P&L").y, expected.equity)
+        assert np.allclose(_trace(fig, "Buy and hold").y, expected.benchmark)
+
+    def test_line_coloured_by_side_and_weighted_by_size(self, pos_df):
+        fig = posplot(pos_df, performance=True, backend="plotly")
+        runs = [t for t in fig.data if t.yaxis == "y4" and t.name is None
+                and t.line.width and t.line.width > 0]
+        # held path: 0, 50, 100, 50, -25, -75, 0, 25
+        assert len(runs) == 8
+        colors = {t.line.color for t in runs}
+        assert len(colors) == 3   # long, short, flat
+        widths = [t.line.width for t in runs]
+        assert widths[2] > widths[1] > widths[0]   # 100 > 50 > flat
+
+    def test_layers_can_be_switched_off(self, pos_df):
+        fig = posplot(pos_df, performance={"underwater": False}, backend="plotly")
+        assert "Buy and hold" not in [t.name for t in fig.data]
+        assert not any(t.fill == "tonexty" for t in fig.data)
+        assert not any("drawdown" in a.text for a in fig.layout.annotations)
+
+    def test_underwater_fill_and_label(self, pos_df):
+        fig = posplot(pos_df, performance=True, backend="plotly")
+        assert any(t.fill == "tonexty" and t.yaxis == "y4" for t in fig.data)
+        assert any("Deepest drawdown" in a.text for a in fig.layout.annotations)
+
+    def test_end_labels(self, pos_df):
+        fig = posplot(pos_df, performance={"split": True, "benchmark": True},
+                      backend="plotly")
+        texts = " ".join(a.text for a in fig.layout.annotations)
+        for name in ("P&L", "Buy & hold", "Longs", "Shorts"):
+            assert name in texts
+
+    def test_periods_pane(self, pos_df):
+        fig = posplot(pos_df, performance={"periods": True}, backend="plotly")
+        bars = [t for t in fig.data if t.type == "bar" and t.yaxis == "y5"]
+        assert len(bars) == 1
+        expected = _perf(pos_df["close"], pos_df["position"])
+        assert np.allclose(bars[0].y, [q["pnl"] for q in expected.periods])
+        assert fig.layout.xaxis.anchor == "y5"
+
+    def test_window_restarts_at_zero(self, pos_df):
+        fig = posplot(pos_df, performance={"benchmark": True},
+                      xaxis={"range": ["2024-01-22", "2024-02-23"]}, backend="plotly")
+        assert _trace(fig, "P&L").y[0] == 0
+        assert _trace(fig, "Buy and hold").y[0] == 0
+
+    def test_works_with_strip_and_candles(self, pos_df):
+        fig = posplot(pos_df, kind="vcandle", layout="strip", performance=True,
+                      backend="plotly")
+        assert fig.layout.yaxis4.domain is not None
+
+
+class TestPerformanceMpl:
+    @pytest.mark.parametrize("performance", [
+        True,
+        {"periods": True, "split": True},
+        {"benchmark": True, "underwater": False},
+        {"compound": True},
+    ])
+    def test_renders(self, pos_df, performance):
+        fig = posplot(pos_df, performance=performance, backend="matplotlib")
+        fig.canvas.draw()
+        plt.close(fig)
+
+    def test_pane_count(self, pos_df):
+        fig = posplot(pos_df, performance=True, backend="matplotlib")
+        assert len(fig.axes) == 3
+        plt.close(fig)
+        fig = posplot(pos_df, performance={"periods": True}, layout="strip",
+                      backend="matplotlib")
+        assert len(fig.axes) == 4
+        plt.close(fig)
 
 
 # ---------------------------------------------------------------------------

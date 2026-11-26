@@ -110,6 +110,20 @@ posplot("XYZ US Equity", position=pos, layout="strip", trades=False)
 The position only needs a row on the dates it changes; it is held between them and is
 flat before the first date. The download starts at the first position date.
 
+Add `performance=True` for a pane showing what the position earned:
+
+```python
+posplot("XYZ US Equity", position=pos, performance=True)
+
+# Choose the layers
+posplot("XYZ US Equity", position=pos,
+        performance={"periods": True, "split": True})
+```
+
+The P&L line is coloured by side (long, short, flat) and thicker for larger positions.
+The shaded area marks time spent below the previous high. Add
+`performance={"benchmark": True}` for a dashed buy-and-hold line to compare against.
+
 To reuse a download, or to plot data from elsewhere, pass a DataFrame instead. Columns
 named `open`, `high`, `low`, `close`, `volume` and `position` are picked up automatically:
 
@@ -207,14 +221,31 @@ df.ts.posplot(price="close", position="position")
 | `layout` | str | `"panes"` (default, position in its own pane) or `"strip"` (thin colour band) |
 | `trades` | bool | Mark position changes and overlay the average entry price (default `True`) |
 | `volume_pane` | bool | Add a volume bar pane under the price |
+| `performance` | bool or dict | Add a cumulative P&L pane (default `False`). Dict keys: `benchmark`, `underwater`, `periods`, `split`, `compound` |
 | `xaxis` | dict | `range` — restricts the plotted window |
 | `yaxis` | dict | `range`, `name` — applies to the price pane |
 | `title`, `source`, `font`, `backend` | | Same as `tsplot()` |
-| `dim` | dict | `width`, `height`, `aspect_ratio` — default 700×440 for panes, 450×300 for strip |
+| `dim` | dict | `width`, `height`, `aspect_ratio` — default 700×440 for panes, 450×300 for strip. Performance panes add height below |
 
 Volume candles need room: widths are scaled to the 95th-percentile volume of the plotted
 window, and a warning is issued below about 4 pixels per candle. On plotly, weekends are
 removed from the axis for daily data; on matplotlib they show as gaps.
+
+How performance is calculated:
+
+- A position set at time *t* first earns the return from *t* to *t+1*.
+- P&L is in percent of a full-size position: a position of 50 on a day the asset rises 2% earns 1.
+- Daily P&L is summed by default; `performance={"compound": True}` compounds it.
+- P&L restarts at zero at the left edge of the plotted window.
+- No transaction costs, financing or slippage.
+
+| `performance` key | Default | Effect |
+|---|---|---|
+| `underwater` | `True` | Shade between the previous high and the line; label the deepest drawdown |
+| `benchmark` | `False` | Dashed line for a constant +100 position (buy and hold) |
+| `periods` | `False` | Extra pane with one bar per holding period (a stretch held on the same side) |
+| `split` | `False` | Separate lines for P&L earned while long and while short |
+| `compound` | `False` | Compound daily P&L instead of summing it |
 
 With a ticker, if Bloomberg has no volume (indices, FX, rates) or no open/high/low, the
 chart falls back to plain candles or a line and says so in a warning.
