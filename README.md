@@ -86,6 +86,33 @@ tsplot(df,
        labels=True)
 ```
 
+### Plot price against position
+
+`posplot()` shows how an asset traded alongside how much of it the portfolio held.
+Position is signed, on a −100 to +100 scale:
+
+```python
+from pxts import posplot
+
+# Close as a line, position pane underneath, trades and average entry price marked
+posplot(df, price="close", position="position")
+
+# Volume candles: candle width scales with that day's volume
+posplot(df,
+        price={"open": "open", "high": "high", "low": "low", "close": "close"},
+        volume="volume",
+        kind="vcandle",
+        xaxis={"range": ["2026-06-01", "2026-11-25"]},
+        title={"main": "Asset XYZ", "sub": "Price and portfolio position"})
+
+# Compact: position as a colour band, sized like a standard tsplot figure
+posplot(df, layout="strip", trades=False)
+```
+
+Triangles mark every change in position (up for a buy, down for a sell, sized by the
+change). The dotted line is the average entry price of the open position; it resets
+when the position crosses zero or goes flat.
+
 ### Bloomberg BDH
 
 Requires `pxts[bloomberg]` and a live Bloomberg Terminal connection.
@@ -135,6 +162,7 @@ import pxts
 df = df.ts.set_tz("UTC")
 df = df.ts.to_dense(freq="D")
 freq = df.ts.infer_freq()
+df.ts.posplot(price="close", position="position")
 ```
 
 ## `tsplot()` parameters
@@ -153,6 +181,27 @@ freq = df.ts.infer_freq()
 | `dimension` | dict | `width` (default 550), `aspect_ratio` (default 1.5) |
 | `backend` | str | `"matplotlib"` or `"plotly"` — defaults to auto-detected backend |
 
+## `posplot()` parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `df` | DataFrame | Must have a DatetimeIndex |
+| `price` | str or dict | Price column, or `{"open", "high", "low", "close"}` → column names (required for candles) |
+| `position` | str | Position column, signed, −100 to +100 |
+| `volume` | str | Volume column — required for `kind="vcandle"` and `volume_pane=True` |
+| `kind` | str | `"line"` (default), `"candle"`, or `"vcandle"` (candle width scales with volume) |
+| `layout` | str | `"panes"` (default, position in its own pane) or `"strip"` (thin colour band) |
+| `trades` | bool | Mark position changes and overlay the average entry price (default `True`) |
+| `volume_pane` | bool | Add a volume bar pane under the price |
+| `xaxis` | dict | `range` — restricts the plotted window |
+| `yaxis` | dict | `range`, `name` — applies to the price pane |
+| `title`, `source`, `font`, `backend` | | Same as `tsplot()` |
+| `dim` | dict | `width`, `height`, `aspect_ratio` — default 700×440 for panes, 450×300 for strip |
+
+Volume candles need room: widths are scaled to the 95th-percentile volume of the plotted
+window, and a warning is issued below about 4 pixels per candle. On plotly, weekends are
+removed from the axis for daily data; on matplotlib they show as gaps.
+
 ## API reference
 
 | Function | Description |
@@ -166,6 +215,7 @@ freq = df.ts.infer_freq()
 | `to_dense(df, freq, fill)` | Regularize sparse index to uniform frequency |
 | `infer_freq(df)` | Infer minimum interval (`"B"`, `"D"`, `"W"`, `"M"`, etc.) |
 | `tsplot(df, ...)` | Time series chart — single or dual axis |
+| `posplot(df, ...)` | Price (line, candles or volume candles) alongside portfolio position |
 | `get_backend()` | Returns `"plotly"` or `"matplotlib"` |
 | `IS_JUPYTER` | `True` if running in Jupyter/IPython |
 | `pxtsValidationError` | Exception for invalid DatetimeIndex |
