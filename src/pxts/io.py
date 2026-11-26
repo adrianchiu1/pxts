@@ -268,6 +268,100 @@ def read_bdh(
     return validate_ts(data)
 
 
+# Bloomberg field -> output column, in output order.
+_BDH_OHLCV_FIELDS = {
+    "PX_OPEN": "open",
+    "PX_HIGH": "high",
+    "PX_LOW": "low",
+    "PX_LAST": "close",
+    "PX_VOLUME": "volume",
+}
+
+
+def read_bdh_ohlcv(
+    ticker: str,
+    start="2000-01-01",
+    end=None,
+    timeout: float = 5,
+) -> pd.DataFrame:
+    """Fetch daily open, high, low, close and volume for one Bloomberg ticker.
+
+    Requests PX_OPEN, PX_HIGH, PX_LOW, PX_LAST and PX_VOLUME in a single
+    Bloomberg call and returns them as one row per date. The result is the
+    shape posplot() expects, so it can be plotted directly once a position
+    column is added.
+
+    Requires pdblp (optional dependency). Install with:
+        pip install pxts[bloomberg]
+
+    Parameters
+    ----------
+    ticker : str
+        A single Bloomberg ticker, e.g. 'AAPL US Equity'.
+    start : str, datetime, or pd.Timestamp
+        Start date (inclusive). Defaults to '2000-01-01'.
+    end : str, datetime, pd.Timestamp, or None
+        End date (inclusive). Defaults to today when None.
+    timeout : float
+        Bloomberg request timeout in seconds. Defaults to 5.
+
+    Returns
+    -------
+    pd.DataFrame
+        DatetimeIndex with columns 'open', 'high', 'low', 'close', 'volume',
+        always in that order. A field Bloomberg has no data for (for example
+        volume on an index or an FX rate) is returned as an all-NaN column.
+
+    Raises
+    ------
+    ImportError
+        If pdblp is not installed.
+    ValueError
+        If ticker is not a single string, or Bloomberg returns no data for it.
+    pxtsValidationError
+        If the returned DataFrame does not have a DatetimeIndex.
+    """
+    if not isinstance(ticker, str):
+        raise ValueError(
+            "read_bdh_ohlcv() takes a single ticker string, got "
+            f"{type(ticker).__name__}. Call it once per ticker."
+        )
+    try:
+        import pdblp
+    except ImportError:
+        raise ImportError(
+            "pdblp required for read_bdh_ohlcv(). Install with: pip install pdblp and https://www.bloomberg.com/professional/support/api-library/"
+        )
+
+    start_date = pd.to_datetime(start).strftime("%Y%m%d")
+    if end is None:
+        end_date = pd.Timestamp.today().strftime("%Y%m%d")
+    else:
+        end_date = pd.to_datetime(end).strftime("%Y%m%d")
+
+    # pdblp expects the timeout in milliseconds
+    con = pdblp.BCon(port=8194, timeout=int(timeout * 1000))
+    con.start()
+    try:
+        raw = con.bdh([ticker], list(_BDH_OHLCV_FIELDS), start_date, end_date)
+    finally:
+        con.stop()
+
+    # pdblp returns MultiIndex columns (ticker, field); fields with no data
+    # may be missing altogether.
+    if raw.empty or ticker not in raw.columns.get_level_values(0):
+        raise ValueError(
+            f"Bloomberg returned no data for {ticker!r} between {start_date} "
+            f"and {end_date}. Check the ticker and date range."
+        )
+    data = raw[ticker].reindex(columns=list(_BDH_OHLCV_FIELDS))
+    data = data.rename(columns=_BDH_OHLCV_FIELDS).astype(float)
+    data.columns.name = None
+    data.index = pd.to_datetime(data.index)
+
+    return validate_ts(data)
+
+
 def read_mb(series) -> pd.DataFrame:
     """Fetch Macrobond historical time series data.
 

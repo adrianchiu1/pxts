@@ -84,7 +84,7 @@ class TsAccessor:
     def posplot(
         self,
         *,
-        price="close",
+        price=None,
         position="position",
         volume=None,
         kind="line",

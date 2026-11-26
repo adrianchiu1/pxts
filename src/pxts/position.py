@@ -1,7 +1,7 @@
 """pxts position module: market price alongside portfolio position.
 
 Public API:
-    posplot(df, *, price="close", position="position", volume=None,
+    posplot(df, *, price=None, position="position", volume=None,
             kind="line", layout="panes", trades=True, volume_pane=False,
             xaxis=None, yaxis=None, font=None, dim=None, title=None,
             source=None, backend=None)
@@ -12,6 +12,11 @@ with that period's volume). Position is a signed step on a fixed -100..+100
 scale: either its own pane under the price (layout="panes") or a thin colour
 band (layout="strip"). With trades=True, every change in position is marked
 on the price and the average entry price of the open position is overlaid.
+
+The first argument is either a DataFrame or a Bloomberg ticker. Given a
+ticker, posplot downloads open/high/low/close/volume with read_bdh_ohlcv()
+and takes the position as a Series (for example a column loaded with
+read_csv()), so a chart needs only a ticker and a position.
 
 Candles are drawn by hand (a bar from open to close plus a low-high wick)
 because neither backend offers per-candle widths. Ordinary candles use the
@@ -61,6 +66,7 @@ from pxts.theme import (
 _KINDS = ("line", "candle", "vcandle")
 _LAYOUTS = ("panes", "strip")
 _OHLC_KEYS = ("open", "high", "low", "close")
+_POSITION_COL = "__pxts_position__"  # internal column for an externally supplied position
 
 # Default chart-area size (px) per layout. "panes" needs height for three
 # stacked panes; "strip" fits the standard pxts figure.
@@ -195,6 +201,120 @@ class _PosData:
     slot: pd.Timedelta
     y_range: tuple                # price-pane y range
     kind: str
+
+
+def _position_as_series(position) -> pd.Series:
+    """Coerce a position given as a Series or one-column DataFrame to a Series."""
+    if isinstance(position, pd.DataFrame):
+        if position.shape[1] != 1:
+            raise ValueError(
+                f"position DataFrame has {position.shape[1]} columns "
+                f"{list(position.columns)}; pass one of them, e.g. "
+                f"position=df[{position.columns[0]!r}]."
+            )
+        position = position.iloc[:, 0]
+    validate_ts(position.to_frame())
+    return position.sort_index()
+
+
+def _attach_position(df: pd.DataFrame, position):
+    """Resolve the position argument to a column of df.
+
+    A column name is returned unchanged. A Series or one-column DataFrame is
+    aligned to df's dates: each date takes the latest position on or before
+    it, and dates before the first position are flat.
+
+    Returns (df, position_column_name).
+    """
+    if isinstance(position, str):
+        return df, position
+    if not isinstance(position, (pd.Series, pd.DataFrame)):
+        raise ValueError(
+            "position must be a column name, a Series or a one-column "
+            f"DataFrame, got {type(position).__name__}."
+        )
+    pos = _position_as_series(position).dropna()
+    # Compare like with like when only one side carries a timezone.
+    if pos.index.tz is not None and df.index.tz is None:
+        pos = pos.tz_localize(None)
+    elif pos.index.tz is None and df.index.tz is not None:
+        pos = pos.tz_localize(df.index.tz)
+    df = df.sort_index().copy()
+    df[_POSITION_COL] = pos.reindex(df.index, method="ffill").fillna(0.0).to_numpy()
+    return df, _POSITION_COL
+
+
+def _autodetect_columns(df: pd.DataFrame, price, volume):
+    """Fill in price and volume from conventionally named columns.
+
+    price=None becomes the open/high/low/close dict when all four columns
+    exist, else the 'close' column. volume=None becomes 'volume' when that
+    column exists.
+    """
+    if price is None:
+        if all(k in df.columns for k in _OHLC_KEYS):
+            price = {k: k for k in _OHLC_KEYS}
+        elif "close" in df.columns:
+            price = "close"
+        else:
+            raise ValueError(
+                "Could not find a price column. Pass price='<column>', or "
+                "price={'open': ..., 'high': ..., 'low': ..., 'close': ...}. "
+                f"Available: {list(df.columns)}"
+            )
+    if volume is None and "volume" in df.columns:
+        volume = "volume"
+    return price, volume
+
+
+def _fetch_ticker(ticker: str, position, kind: str, volume_pane: bool):
+    """Download OHLCV for a Bloomberg ticker and fit the request to the data.
+
+    The download starts at the first position date so the average entry price
+    is computed from the whole holding period. Fields Bloomberg has no data
+    for are dropped, and the chart degrades with a warning: volume candles to
+    plain candles without volume, candles to a line without open/high/low.
+
+    Returns (df, kind, volume_pane).
+    """
+    from pxts.io import read_bdh_ohlcv
+
+    if isinstance(position, str):
+        raise ValueError(
+            "With a ticker, position must be a Series or one-column DataFrame "
+            "of positions, e.g. position=read_csv('positions.csv')['XYZ']."
+        )
+    if not isinstance(position, (pd.Series, pd.DataFrame)):
+        raise ValueError(
+            "position must be a Series or a one-column DataFrame, got "
+            f"{type(position).__name__}."
+        )
+    pos = _position_as_series(position).dropna()
+    if pos.empty:
+        raise ValueError("position has no non-missing values.")
+
+    df = read_bdh_ohlcv(ticker, start=pos.index[0])
+    df = df.dropna(axis=1, how="all")
+    if "close" not in df.columns:
+        raise ValueError(f"Bloomberg returned no PX_LAST data for {ticker!r}.")
+
+    if kind != "line" and not all(k in df.columns for k in _OHLC_KEYS):
+        warnings.warn(
+            f"posplot: {ticker!r} has no open/high/low data; drawing a line "
+            f"instead of kind={kind!r}.", UserWarning, stacklevel=3)
+        kind = "line"
+    if "volume" not in df.columns:
+        if kind == "vcandle":
+            warnings.warn(
+                f"posplot: {ticker!r} has no volume data; drawing plain "
+                "candles instead of volume candles.", UserWarning, stacklevel=3)
+            kind = "candle"
+        if volume_pane:
+            warnings.warn(
+                f"posplot: {ticker!r} has no volume data; volume pane omitted.",
+                UserWarning, stacklevel=3)
+            volume_pane = False
+    return df, kind, volume_pane
 
 
 def _validate_posplot_params(df, price, position, volume, kind, layout,
@@ -717,7 +837,7 @@ def _posplot_mpl(d: _PosData, layout, trades, volume_pane, yaxis,
 # ---------------------------------------------------------------------------
 
 def posplot(df, *,
-            price="close", position="position", volume=None,
+            price=None, position="position", volume=None,
             kind="line", layout="panes", trades=True, volume_pane=False,
             xaxis=None, yaxis=None, font=None, dim=None, title=None,
             source=None, backend=None):
@@ -726,16 +846,32 @@ def posplot(df, *,
     Layout (top to bottom): accent line, title, subtitle, legend, price pane,
     optional volume pane, position pane or strip, source.
 
+    The quickest route needs only a Bloomberg ticker and a position::
+
+        pos = read_csv("positions.csv")["XYZ"]
+        posplot("XYZ US Equity", position=pos, kind="vcandle")
+
     Args:
-        df: pandas DataFrame with a DatetimeIndex.
+        df: pandas DataFrame with a DatetimeIndex, or a Bloomberg ticker
+            string. A ticker is downloaded with read_bdh_ohlcv() from the
+            first position date onward; the title defaults to the ticker and
+            the source to Bloomberg. If Bloomberg has no volume or no
+            open/high/low for the ticker, the chart falls back to plain
+            candles or a line with a warning.
         price: column name of the price, or a dict
             {"open": col, "high": col, "low": col, "close": col}. The dict
-            form is required for kind="candle" and kind="vcandle".
-        position: column name of the position, signed, on a -100..+100 scale
-            (+100 fully long, 0 flat, -100 fully short). Missing values are
-            forward-filled; the position is treated as constant between rows.
+            form is required for kind="candle" and kind="vcandle". Defaults
+            to columns named open/high/low/close when all four exist, else
+            the 'close' column.
+        position: the position, signed, on a -100..+100 scale (+100 fully
+            long, 0 flat, -100 fully short). Either a column name of df, or a
+            Series / one-column DataFrame with a DatetimeIndex (required
+            with a ticker). A Series is aligned to the price dates: each
+            date takes the latest position on or before it, and dates before
+            the first position are flat. Missing values are forward-filled.
         volume: column name of traded volume. Required for kind="vcandle"
-            and for volume_pane=True.
+            and for volume_pane=True. Defaults to the 'volume' column when
+            it exists.
         kind: how to draw the price.
             "line": close as a line.
             "candle": candlesticks of equal width.
@@ -776,14 +912,27 @@ def posplot(df, *,
         On plotly, weekends are removed from the axis for daily data. On
         matplotlib the date axis is continuous, so weekends show as gaps.
     """
-    if title is None:
-        df_name = _infer_df_name(df)
-        if df_name:
-            title = {"main": df_name}
-    if source is None:
-        source = ["Own calculations"]
+    if kind not in _KINDS:
+        raise ValueError(f"kind must be one of {_KINDS}, got {kind!r}")
+
+    if isinstance(df, str):
+        ticker = df
+        df, kind, volume_pane = _fetch_ticker(ticker, position, kind, volume_pane)
+        if title is None:
+            title = {"main": ticker}
+        if source is None:
+            source = ["Bloomberg"]
+    else:
+        if title is None:
+            df_name = _infer_df_name(df)
+            if df_name:
+                title = {"main": df_name}
+        if source is None:
+            source = ["Own calculations"]
 
     validate_ts(df)
+    df, position = _attach_position(df, position)
+    price, volume = _autodetect_columns(df, price, volume)
     _validate_posplot_params(df, price, position, volume, kind, layout,
                              xaxis, yaxis, font, dim, title, source)
     if volume_pane and volume is None:

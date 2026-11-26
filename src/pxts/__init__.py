@@ -14,11 +14,12 @@ Public API (all accessible via star import):
   write_csv(df, path)             — write DataFrame to CSV
   read_xlsx(path)                 — read Excel (.xlsx/.xlsm) into validated DataFrame
   read_bdh(tickers, start, field='PX_LAST', end=None, timeout=5) — fetch Bloomberg BDH data
+  read_bdh_ohlcv(ticker, start='2000-01-01', end=None, timeout=5) — fetch Bloomberg open/high/low/close/volume
   read_mb(series)                 — fetch Macrobond time series data
   get_backend()                   — return active backend name ('plotly' or 'matplotlib')
   IS_JUPYTER                      — bool, True if running in a Jupyter/IPython kernel
   tsplot(df, cols=None, ...)      — plot time series (single or dual axis via yaxis2)
-  posplot(df, price=, position=)  — plot price alongside portfolio position (-100..+100)
+  posplot(df_or_ticker, position=) — plot price alongside portfolio position (-100..+100)
 
 The .ts accessor is registered automatically on import of this module.
 Usage: df.ts.set_tz() / df.ts.to_dense(freq='D') / df.ts.infer_freq()
@@ -46,7 +47,7 @@ if _pandas_version < _PANDAS_MIN:
 from pxts.exceptions import pxtsValidationError  # noqa: E402
 from pxts.core import validate_ts, set_tz, to_dense, infer_freq  # noqa: E402
 from pxts.accessor import TsAccessor  # noqa: E402, F401 — import registers .ts accessor
-from pxts.io import read_csv, write_csv, read_xlsx, read_bdh, read_mb  # noqa: E402
+from pxts.io import read_csv, write_csv, read_xlsx, read_bdh, read_bdh_ohlcv, read_mb  # noqa: E402
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme, FT_COLORS, OKABE_ITO_COLORS  # noqa: E402
 from pxts.plots import tsplot  # noqa: E402
@@ -64,6 +65,7 @@ __all__ = [
     "write_csv",
     "read_xlsx",
     "read_bdh",
+    "read_bdh_ohlcv",
     "read_mb",
     "get_backend",
     "IS_JUPYTER",

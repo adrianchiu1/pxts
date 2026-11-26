@@ -92,21 +92,35 @@ tsplot(df,
 Position is signed, on a −100 to +100 scale:
 
 ```python
-from pxts import posplot
+from pxts import posplot, read_csv
 
-# Close as a line, position pane underneath, trades and average entry price marked
-posplot(df, price="close", position="position")
+pos = read_csv("positions.csv")["XYZ"]     # dated positions, -100..+100
+
+# A Bloomberg ticker and a position are enough: prices and volume are downloaded
+posplot("XYZ US Equity", position=pos)
 
 # Volume candles: candle width scales with that day's volume
-posplot(df,
-        price={"open": "open", "high": "high", "low": "low", "close": "close"},
-        volume="volume",
-        kind="vcandle",
-        xaxis={"range": ["2026-06-01", "2026-11-25"]},
-        title={"main": "Asset XYZ", "sub": "Price and portfolio position"})
+posplot("XYZ US Equity", position=pos, kind="vcandle",
+        xaxis={"range": ["2026-06-01", "2026-11-25"]})
 
 # Compact: position as a colour band, sized like a standard tsplot figure
-posplot(df, layout="strip", trades=False)
+posplot("XYZ US Equity", position=pos, layout="strip", trades=False)
+```
+
+The position only needs a row on the dates it changes; it is held between them and is
+flat before the first date. The download starts at the first position date.
+
+To reuse a download, or to plot data from elsewhere, pass a DataFrame instead. Columns
+named `open`, `high`, `low`, `close`, `volume` and `position` are picked up automatically:
+
+```python
+from pxts import read_bdh_ohlcv
+
+px = read_bdh_ohlcv("XYZ US Equity", start="2025-01-01")
+posplot(px, position=pos, kind="vcandle")
+
+# Other column names
+posplot(df, price="px_last", position="weight")
 ```
 
 Triangles mark every change in position (up for a buy, down for a sell, sized by the
@@ -185,10 +199,10 @@ df.ts.posplot(price="close", position="position")
 
 | Parameter | Type | Description |
 |---|---|---|
-| `df` | DataFrame | Must have a DatetimeIndex |
-| `price` | str or dict | Price column, or `{"open", "high", "low", "close"}` → column names (required for candles) |
-| `position` | str | Position column, signed, −100 to +100 |
-| `volume` | str | Volume column — required for `kind="vcandle"` and `volume_pane=True` |
+| `df` | DataFrame or str | DataFrame with a DatetimeIndex, or a Bloomberg ticker to download |
+| `price` | str or dict | Price column, or `{"open", "high", "low", "close"}` → column names. Defaults to columns with those names |
+| `position` | str, Series or DataFrame | Signed, −100 to +100. A column name of `df`, or a dated Series / one-column DataFrame (required with a ticker) |
+| `volume` | str | Volume column — needed for `kind="vcandle"` and `volume_pane=True`. Defaults to `volume` |
 | `kind` | str | `"line"` (default), `"candle"`, or `"vcandle"` (candle width scales with volume) |
 | `layout` | str | `"panes"` (default, position in its own pane) or `"strip"` (thin colour band) |
 | `trades` | bool | Mark position changes and overlay the average entry price (default `True`) |
@@ -202,6 +216,9 @@ Volume candles need room: widths are scaled to the 95th-percentile volume of the
 window, and a warning is issued below about 4 pixels per candle. On plotly, weekends are
 removed from the axis for daily data; on matplotlib they show as gaps.
 
+With a ticker, if Bloomberg has no volume (indices, FX, rates) or no open/high/low, the
+chart falls back to plain candles or a line and says so in a warning.
+
 ## API reference
 
 | Function | Description |
@@ -209,6 +226,7 @@ removed from the axis for daily data; on matplotlib they show as gaps.
 | `read_csv(path, *, tz, date_format)` | Read CSV with auto-detected date parsing |
 | `write_csv(df, path, *, date_format)` | Write CSV in ISO 8601 format |
 | `read_bdh(tickers, start, field, end, timeout)` | Fetch Bloomberg BDH historical data |
+| `read_bdh_ohlcv(ticker, start, end, timeout)` | Fetch Bloomberg open/high/low/close/volume for one ticker |
 | `read_mb(series)` | Fetch Macrobond historical time series data |
 | `validate_ts(df)` | Assert DatetimeIndex; raises `pxtsValidationError` |
 | `set_tz(df, tz)` | Localize or convert index timezone |
