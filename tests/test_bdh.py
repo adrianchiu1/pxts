@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from unittest.mock import MagicMock, patch
 
-from pxts.io import read_bdh
+from pxts.io import read_bdh, read_bdh_ohlcv
 
 
 def _make_bdh_response(tickers: list[str], field: str, dates: list[str]) -> pd.DataFrame:
@@ -212,3 +212,93 @@ class TestReadBdh:
         # AAPL is ticker index 0: values are [0.0, 1.0]; MSFT is index 1: [1.0, 2.0]
         assert list(df["Apple"]) == [0.0, 1.0]
         assert list(df["Microsoft"]) == [1.0, 2.0]
+
+
+# ---------------------------------------------------------------------------
+# read_bdh_ohlcv
+# ---------------------------------------------------------------------------
+
+_OHLCV_FIELDS = ["PX_OPEN", "PX_HIGH", "PX_LOW", "PX_LAST", "PX_VOLUME"]
+
+
+def _make_ohlcv_response(ticker: str, dates: list[str], fields=None) -> pd.DataFrame:
+    """Build a fake pdblp bdh() response for one ticker and several fields."""
+    fields = _OHLCV_FIELDS if fields is None else fields
+    index = pd.to_datetime(dates)
+    columns = pd.MultiIndex.from_tuples([(ticker, f) for f in fields])
+    data = {
+        (ticker, f): [float(10 * i + j) for j, _ in enumerate(dates)]
+        for i, f in enumerate(fields)
+    }
+    return pd.DataFrame(data, index=index, columns=columns)
+
+
+class TestReadBdhOhlcv:
+    TICKER = "AAPL US Equity"
+    DATES = ["2024-01-02", "2024-01-03", "2024-01-04"]
+
+    def _run(self, response, **kwargs):
+        mock_pdblp, mock_con = _make_mock_pdblp(response)
+        with patch.dict(sys.modules, {"pdblp": mock_pdblp}):
+            out = read_bdh_ohlcv(self.TICKER, "20240101", **kwargs)
+        return out, mock_pdblp, mock_con
+
+    def test_columns_and_index(self):
+        out, _, _ = self._run(_make_ohlcv_response(self.TICKER, self.DATES))
+        assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+        assert isinstance(out.index, pd.DatetimeIndex)
+        assert len(out) == 3
+
+    def test_fields_map_to_the_right_columns(self):
+        out, _, _ = self._run(_make_ohlcv_response(self.TICKER, self.DATES))
+        # field i is filled with 10*i + row, in _OHLCV_FIELDS order
+        assert list(out["open"]) == [0.0, 1.0, 2.0]
+        assert list(out["close"]) == [30.0, 31.0, 32.0]
+        assert list(out["volume"]) == [40.0, 41.0, 42.0]
+
+    def test_mapping_ignores_bloomberg_column_order(self):
+        shuffled = ["PX_VOLUME", "PX_LAST", "PX_OPEN", "PX_LOW", "PX_HIGH"]
+        out, _, _ = self._run(_make_ohlcv_response(self.TICKER, self.DATES, shuffled))
+        assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+        assert list(out["volume"]) == [0.0, 1.0, 2.0]   # first field in the response
+        assert list(out["close"]) == [10.0, 11.0, 12.0]
+
+    def test_one_request_for_all_five_fields(self):
+        _, _, mock_con = self._run(_make_ohlcv_response(self.TICKER, self.DATES),
+                                   end="2024-01-31")
+        mock_con.bdh.assert_called_once_with(
+            [self.TICKER], _OHLCV_FIELDS, "20240101", "20240131")
+
+    def test_missing_field_becomes_nan_column(self):
+        response = _make_ohlcv_response(self.TICKER, self.DATES, ["PX_LAST", "PX_OPEN"])
+        out, _, _ = self._run(response)
+        assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+        assert out["volume"].isna().all()
+        assert out["close"].notna().all()
+
+    def test_timeout_in_milliseconds(self):
+        _, mock_pdblp, _ = self._run(_make_ohlcv_response(self.TICKER, self.DATES),
+                                     timeout=30)
+        assert mock_pdblp.BCon.call_args.kwargs["timeout"] == 30000
+
+    def test_connection_stopped_on_error(self):
+        mock_pdblp = MagicMock()
+        mock_con = mock_pdblp.BCon.return_value
+        mock_con.bdh.side_effect = RuntimeError("boom")
+        with patch.dict(sys.modules, {"pdblp": mock_pdblp}):
+            with pytest.raises(RuntimeError):
+                read_bdh_ohlcv(self.TICKER)
+        mock_con.stop.assert_called_once()
+
+    def test_empty_response_raises(self):
+        with pytest.raises(ValueError, match="no data"):
+            self._run(pd.DataFrame())
+
+    def test_list_of_tickers_rejected(self):
+        with pytest.raises(ValueError, match="single ticker"):
+            read_bdh_ohlcv([self.TICKER, "MSFT US Equity"])
+
+    def test_importerror_without_pdblp(self):
+        with patch.dict(sys.modules, {"pdblp": None}):
+            with pytest.raises(ImportError, match="pdblp"):
+                read_bdh_ohlcv(self.TICKER)

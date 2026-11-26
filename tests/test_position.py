@@ -1,5 +1,6 @@
 """Unit tests for pxts.position: posplot and its data helpers."""
 import warnings
+from unittest.mock import patch
 
 import matplotlib
 matplotlib.use("Agg")  # Non-interactive backend — MUST be before any pyplot import
@@ -270,8 +271,9 @@ class TestValidation:
             posplot(pos_df, layout="overlay", backend="plotly")
 
     def test_candle_needs_ohlc(self, pos_df):
+        df = pos_df[["close", "position"]]
         with pytest.raises(ValueError, match="open/high/low/close"):
-            posplot(pos_df, kind="candle", backend="plotly")
+            posplot(df, kind="candle", backend="plotly")
 
     def test_candle_needs_all_ohlc_keys(self, pos_df):
         with pytest.raises(ValueError, match="missing keys"):
@@ -280,11 +282,16 @@ class TestValidation:
 
     def test_vcandle_needs_volume(self, pos_df):
         with pytest.raises(ValueError, match="volume"):
-            posplot(pos_df, price=OHLC, kind="vcandle", backend="plotly")
+            posplot(pos_df.drop(columns="volume"), kind="vcandle", backend="plotly")
 
     def test_volume_pane_needs_volume(self, pos_df):
         with pytest.raises(ValueError, match="volume"):
-            posplot(pos_df, volume_pane=True, backend="plotly")
+            posplot(pos_df.drop(columns="volume"), volume_pane=True, backend="plotly")
+
+    def test_no_price_column(self, pos_df):
+        df = pos_df[["position"]].assign(px=pos_df["close"])
+        with pytest.raises(ValueError, match="price column"):
+            posplot(df, backend="plotly")
 
     def test_position_out_of_range(self, pos_df):
         df = pos_df.assign(position=pos_df["position"] * 2)
@@ -304,6 +311,146 @@ class TestValidation:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             posplot(pos_df, price=OHLC, volume="volume", kind="vcandle", backend="plotly")
+
+
+# ---------------------------------------------------------------------------
+# Column auto-detection and external position
+# ---------------------------------------------------------------------------
+
+class TestAutodetect:
+    def test_ohlc_and_volume_found_without_arguments(self, pos_df):
+        fig = posplot(pos_df, kind="vcandle", backend="plotly")
+        body = _trace(fig, "Price")
+        assert np.allclose(body.base, np.minimum(pos_df["open"], pos_df["close"]))
+        assert len(set(np.round(body.width, 6))) > 1
+
+    def test_close_only_frame_draws_line(self, pos_df):
+        fig = posplot(pos_df[["close", "position"]], backend="plotly")
+        assert np.allclose(_trace(fig, "Close").y, pos_df["close"])
+
+    def test_explicit_columns_still_win(self, pos_df):
+        df = pos_df.assign(mid=(pos_df["high"] + pos_df["low"]) / 2)
+        fig = posplot(df, price="mid", backend="plotly")
+        assert np.allclose(_trace(fig, "Close").y, df["mid"])
+
+
+class TestPositionSeries:
+    def test_series_matches_column(self, pos_df):
+        prices = pos_df.drop(columns="position")
+        by_col = posplot(pos_df, backend="plotly")
+        by_series = posplot(prices, position=pos_df["position"], backend="plotly")
+        assert list(_trace(by_series, "Position").y) == list(_trace(by_col, "Position").y)
+        assert list(_trace(by_series, "Buy").x) == list(_trace(by_col, "Buy").x)
+
+    def test_one_column_dataframe(self, pos_df):
+        prices = pos_df.drop(columns="position")
+        fig = posplot(prices, position=pos_df[["position"]], backend="plotly")
+        assert list(_trace(fig, "Position").y) == list(pos_df["position"])
+
+    def test_multi_column_dataframe_rejected(self, pos_df):
+        with pytest.raises(ValueError, match="2 columns"):
+            posplot(pos_df, position=pos_df[["position", "close"]], backend="plotly")
+
+    def test_sparse_positions_are_held_between_dates(self, pos_df):
+        prices = pos_df.drop(columns="position")
+        idx = prices.index
+        changes = pd.Series([50.0, -25.0], index=[idx[5], idx[20]])
+        fig = posplot(prices, position=changes, backend="plotly")
+        pos = np.asarray(_trace(fig, "Position").y)
+        assert (pos[:5] == 0).all()        # flat before the first position
+        assert (pos[5:20] == 50).all()     # held until the next change
+        assert (pos[20:] == -25).all()
+
+    def test_position_on_non_trading_day_applies_next_session(self, pos_df):
+        prices = pos_df.drop(columns="position")
+        saturday = pd.Timestamp("2024-01-06")
+        fig = posplot(prices, position=pd.Series([75.0], index=[saturday]), backend="plotly")
+        pos = pd.Series(_trace(fig, "Position").y, index=prices.index)
+        assert pos.loc["2024-01-05"] == 0
+        assert pos.loc["2024-01-08"] == 75
+
+    def test_timezone_aware_position_on_naive_prices(self, pos_df):
+        prices = pos_df.drop(columns="position")
+        aware = pos_df["position"].tz_localize("UTC")
+        fig = posplot(prices, position=aware, backend="plotly")
+        assert list(_trace(fig, "Position").y) == list(pos_df["position"])
+
+    def test_bad_position_type(self, pos_df):
+        with pytest.raises(ValueError, match="position must be"):
+            posplot(pos_df, position=[1, 2, 3], backend="plotly")
+
+
+# ---------------------------------------------------------------------------
+# Bloomberg ticker input
+# ---------------------------------------------------------------------------
+
+class TestTickerInput:
+    @pytest.fixture
+    def bbg(self, pos_df):
+        """Patch read_bdh_ohlcv to return the fixture's OHLCV columns."""
+        ohlcv = pos_df[["open", "high", "low", "close", "volume"]]
+        with patch("pxts.io.read_bdh_ohlcv", return_value=ohlcv.copy()) as mock:
+            yield mock
+
+    def test_ticker_and_position_is_enough(self, pos_df, bbg):
+        fig = posplot("XYZ US Equity", position=pos_df["position"], kind="vcandle",
+                      backend="plotly")
+        assert isinstance(fig, go.Figure)
+        assert len(set(np.round(_trace(fig, "Price").width, 6))) > 1
+        assert list(_trace(fig, "Position").y) == list(pos_df["position"])
+
+    def test_download_starts_at_first_position(self, pos_df, bbg):
+        pos = pos_df["position"].iloc[10:]
+        posplot("XYZ US Equity", position=pos, backend="plotly")
+        args, kwargs = bbg.call_args
+        assert args == ("XYZ US Equity",)
+        assert kwargs["start"] == pos.index[0]
+
+    def test_default_title_and_source(self, pos_df, bbg):
+        fig = posplot("XYZ US Equity", position=pos_df["position"], backend="plotly")
+        assert "XYZ US Equity" in fig.layout.title.text
+        assert "Source: Bloomberg" in [a.text for a in fig.layout.annotations]
+
+    def test_explicit_title_and_source_kept(self, pos_df, bbg):
+        fig = posplot("XYZ US Equity", position=pos_df["position"],
+                      title={"main": "My title"}, source=["Desk"], backend="plotly")
+        assert "My title" in fig.layout.title.text
+        assert "Source: Desk" in [a.text for a in fig.layout.annotations]
+
+    def test_matplotlib_backend(self, pos_df, bbg):
+        fig = posplot("XYZ US Equity", position=pos_df["position"], kind="candle",
+                      backend="matplotlib")
+        assert isinstance(fig, matplotlib.figure.Figure)
+        plt.close(fig)
+
+    def test_column_name_position_rejected(self, bbg):
+        with pytest.raises(ValueError, match="Series"):
+            posplot("XYZ US Equity", position="position", backend="plotly")
+        bbg.assert_not_called()
+
+    def test_no_volume_falls_back_to_candles(self, pos_df):
+        ohlcv = pos_df[["open", "high", "low", "close"]].assign(volume=np.nan)
+        with patch("pxts.io.read_bdh_ohlcv", return_value=ohlcv):
+            with pytest.warns(UserWarning, match="no volume data"):
+                fig = posplot("SPX Index", position=pos_df["position"], kind="vcandle",
+                              backend="plotly")
+        assert len(set(np.round(_trace(fig, "Price").width, 6))) == 1
+
+    def test_no_volume_drops_volume_pane(self, pos_df):
+        ohlcv = pos_df[["open", "high", "low", "close"]].assign(volume=np.nan)
+        with patch("pxts.io.read_bdh_ohlcv", return_value=ohlcv):
+            with pytest.warns(UserWarning, match="volume pane omitted"):
+                fig = posplot("SPX Index", position=pos_df["position"], volume_pane=True,
+                              backend="plotly")
+        assert "Volume" not in [t.name for t in fig.data]
+
+    def test_no_ohlc_falls_back_to_line(self, pos_df):
+        ohlcv = pos_df[["close", "volume"]].assign(open=np.nan, high=np.nan, low=np.nan)
+        with patch("pxts.io.read_bdh_ohlcv", return_value=ohlcv):
+            with pytest.warns(UserWarning, match="drawing a line"):
+                fig = posplot("USGG10YR Index", position=pos_df["position"], kind="candle",
+                              backend="plotly")
+        assert "Close" in [t.name for t in fig.data]
 
 
 # ---------------------------------------------------------------------------
