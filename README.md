@@ -121,8 +121,8 @@ posplot("XYZ US Equity", position=pos,
 ```
 
 The P&L line is coloured by side (long, short, flat) and thicker for larger positions.
-The shaded area marks time spent below the previous high, and the dashed line is a
-constant full long position for comparison.
+The shaded area marks time spent below the previous high. Add
+`performance={"benchmark": True}` for a dashed buy-and-hold line to compare against.
 
 To reuse a download, or to plot data from elsewhere, pass a DataFrame instead. Columns
 named `open`, `high`, `low`, `close`, `volume` and `position` are picked up automatically:
@@ -241,8 +241,8 @@ How performance is calculated:
 
 | `performance` key | Default | Effect |
 |---|---|---|
-| `benchmark` | `True` | Dashed line for a constant +100 position (buy and hold) |
 | `underwater` | `True` | Shade between the previous high and the line; label the deepest drawdown |
+| `benchmark` | `False` | Dashed line for a constant +100 position (buy and hold) |
 | `periods` | `False` | Extra pane with one bar per holding period (a stretch held on the same side) |
 | `split` | `False` | Separate lines for P&L earned while long and while short |
 | `compound` | `False` | Compound daily P&L instead of summing it |

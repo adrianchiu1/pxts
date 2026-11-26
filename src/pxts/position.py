@@ -94,8 +94,8 @@ _POS_LIMIT: float = 100.0
 _POS_AXIS_PAD: float = 12.0    # headroom beyond +/-100 on the position axis
 
 _PERF_OPTIONS = {          # performance=True; override with a dict
-    "benchmark": True,     # buy-and-hold line
     "underwater": True,    # fill between the previous high and the line
+    "benchmark": False,    # buy-and-hold line
     "periods": False,      # extra pane: P&L per holding period
     "split": False,        # separate lines for P&L from longs and from shorts
     "compound": False,     # compound daily P&L instead of summing it
@@ -1269,9 +1269,9 @@ def posplot(df, *,
             coloured by side (long, short, flat) and thicker for larger
             positions. P&L restarts at zero at the left edge of the plotted
             window and excludes costs. Pass a dict to choose the layers:
-            benchmark (True): a buy-and-hold line, i.e. a constant +100.
             underwater (True): shade between the previous high and the line,
             and label the deepest drawdown.
+            benchmark (False): a buy-and-hold line, i.e. a constant +100.
             periods (False): an extra pane with one bar per holding period
             (a stretch held on the same side), as wide as it lasted and as
             tall as it earned.

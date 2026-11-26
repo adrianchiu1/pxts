@@ -551,7 +551,10 @@ class TestPerformanceOptions:
 
     def test_dict_overrides_defaults(self):
         options = _resolve_performance({"periods": True})
-        assert options["periods"] is True and options["benchmark"] is True
+        assert options["periods"] is True and options["underwater"] is True
+
+    def test_benchmark_off_by_default(self):
+        assert _resolve_performance(True)["benchmark"] is False
 
     def test_unknown_option(self):
         with pytest.raises(ValueError, match="Unknown performance options"):
@@ -580,7 +583,7 @@ class TestPerformancePlotly:
         assert fig.layout.xaxis.anchor == "y4"
 
     def test_equity_matches_calculation(self, pos_df):
-        fig = posplot(pos_df, performance=True, backend="plotly")
+        fig = posplot(pos_df, performance={"benchmark": True}, backend="plotly")
         expected = _perf(pos_df["close"], pos_df["position"])
         assert np.allclose(_trace(fig, "P&L").y, expected.equity)
         assert np.allclose(_trace(fig, "Buy and hold").y, expected.benchmark)
@@ -597,8 +600,7 @@ class TestPerformancePlotly:
         assert widths[2] > widths[1] > widths[0]   # 100 > 50 > flat
 
     def test_layers_can_be_switched_off(self, pos_df):
-        fig = posplot(pos_df, performance={"benchmark": False, "underwater": False},
-                      backend="plotly")
+        fig = posplot(pos_df, performance={"underwater": False}, backend="plotly")
         assert "Buy and hold" not in [t.name for t in fig.data]
         assert not any(t.fill == "tonexty" for t in fig.data)
         assert not any("drawdown" in a.text for a in fig.layout.annotations)
@@ -609,7 +611,8 @@ class TestPerformancePlotly:
         assert any("Deepest drawdown" in a.text for a in fig.layout.annotations)
 
     def test_end_labels(self, pos_df):
-        fig = posplot(pos_df, performance={"split": True}, backend="plotly")
+        fig = posplot(pos_df, performance={"split": True, "benchmark": True},
+                      backend="plotly")
         texts = " ".join(a.text for a in fig.layout.annotations)
         for name in ("P&L", "Buy & hold", "Longs", "Shorts"):
             assert name in texts
@@ -623,7 +626,7 @@ class TestPerformancePlotly:
         assert fig.layout.xaxis.anchor == "y5"
 
     def test_window_restarts_at_zero(self, pos_df):
-        fig = posplot(pos_df, performance=True,
+        fig = posplot(pos_df, performance={"benchmark": True},
                       xaxis={"range": ["2024-01-22", "2024-02-23"]}, backend="plotly")
         assert _trace(fig, "P&L").y[0] == 0
         assert _trace(fig, "Buy and hold").y[0] == 0
@@ -638,7 +641,7 @@ class TestPerformanceMpl:
     @pytest.mark.parametrize("performance", [
         True,
         {"periods": True, "split": True},
-        {"benchmark": False, "underwater": False},
+        {"benchmark": True, "underwater": False},
         {"compound": True},
     ])
     def test_renders(self, pos_df, performance):
