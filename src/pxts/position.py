@@ -3,6 +3,7 @@
 Public API:
     posplot(df, *, price=None, position="position", volume=None,
             kind="line", layout="panes", trades=True, volume_pane=False,
+            performance=False,
             xaxis=None, yaxis=None, font=None, dim=None, title=None,
             source=None, backend=None)
 
@@ -92,6 +93,23 @@ _VCANDLE_MIN_SLOT_PX: float = 4.0  # below this, width differences are unreadabl
 _POS_LIMIT: float = 100.0
 _POS_AXIS_PAD: float = 12.0    # headroom beyond +/-100 on the position axis
 
+_PERF_OPTIONS = {          # performance=True; override with a dict
+    "benchmark": True,     # buy-and-hold line
+    "underwater": True,    # fill between the previous high and the line
+    "periods": False,      # extra pane: P&L per holding period
+    "split": False,        # separate lines for P&L from longs and from shorts
+    "compound": False,     # compound daily P&L instead of summing it
+}
+_PERF_PANE_FRAC: float = 0.40    # performance pane height, share of the chart height
+_PERF_PANE_MIN_PX: int = 120
+_PERIODS_PANE_FRAC: float = 0.14
+_PERIODS_PANE_MIN_PX: int = 50
+_PERF_LABEL_MARGIN_PX: int = 118 # right margin for end-of-line labels
+_PERF_LINE_MIN_PX: float = 1.5   # equity line width when flat or tiny
+_PERF_LINE_MAX_PX: float = 4.0   # equity line width at a full position
+_FLAT_COLOR: str = "#9A958F"     # equity line while flat; benchmark line
+_UNDERWATER_ALPHA: float = 0.13
+
 _MARKER_BASE_PX: float = 8.0   # trade marker size for a zero-size change
 _MARKER_PER_UNIT: float = 0.12  # extra px per unit of position change
 
@@ -149,6 +167,198 @@ def _position_trades(price: pd.Series, position: pd.Series):
     return trades, pd.Series(avg_entry, index=position.index, name="avg_entry")
 
 
+def _resolve_performance(performance) -> Optional[dict]:
+    """Turn the performance argument into a full options dict, or None if off."""
+    if performance is None or performance is False:
+        return None
+    if performance is True:
+        return dict(_PERF_OPTIONS)
+    if not isinstance(performance, dict):
+        raise ValueError(
+            f"performance must be bool or dict, got {type(performance).__name__}")
+    unknown = [k for k in performance if k not in _PERF_OPTIONS]
+    if unknown:
+        raise ValueError(
+            f"Unknown performance options {unknown}. Valid: {list(_PERF_OPTIONS)}")
+    return {**_PERF_OPTIONS, **performance}
+
+
+@dataclass
+class _Perf:
+    """Performance of the position over the plotted window, in percent of a
+    full-size position. Every cumulative series starts at zero."""
+    held: np.ndarray        # position that earned each row's return
+    pnl: np.ndarray         # per-row P&L
+    equity: np.ndarray      # cumulative P&L
+    benchmark: np.ndarray   # cumulative P&L of a constant +100 position
+    long: np.ndarray        # cumulative P&L earned while long
+    short: np.ndarray       # cumulative P&L earned while short
+    high: np.ndarray        # running maximum of equity
+    periods: list           # [{"side", "start", "end", "pnl"}], row positions
+    drawdown: float         # deepest drawdown, as a positive number
+    trough: int             # row of the deepest drawdown
+    peak: int               # row of the high it fell from
+    options: dict
+    unit: str = "days"      # what one row is called in labels
+
+
+def _performance(close, position, options: dict, unit: str = "days") -> _Perf:
+    """Compute what a position earned, row by row.
+
+    A position set on row t first earns the return from t to t+1: the P&L on
+    row i is position[i-1] / 100 times the asset's return from i-1 to i. The
+    first row therefore has no P&L, and a position change shows up in P&L
+    from the following row.
+
+    P&L is in percent of a full-size (100) position. By default daily P&L is
+    summed, matching a fixed risk budget; with options["compound"] it is
+    compounded. The benchmark is a constant +100 position, accumulated the
+    same way.
+
+    A holding period is a maximal run of rows whose P&L was earned on the
+    same side (long or short).
+    """
+    close = np.asarray(close, dtype=float)
+    position = np.asarray(position, dtype=float)
+    n = len(close)
+    ret = np.zeros(n)
+    held = np.zeros(n)
+    if n > 1:
+        ret[1:] = (close[1:] / close[:-1] - 1) * 100
+        held[1:] = position[:-1]
+    ret = np.nan_to_num(ret, nan=0.0)
+    pnl = held / 100 * ret
+
+    compound = options["compound"]
+
+    def cumulate(x):
+        return (np.cumprod(1 + x / 100) - 1) * 100 if compound else np.cumsum(x)
+
+    equity = cumulate(pnl)
+    high = np.maximum.accumulate(equity) if n else equity
+    # Summed P&L draws down in points; compounded P&L in percent from the peak.
+    depth = (1 - (100 + equity) / (100 + high)) * 100 if compound else high - equity
+    trough = int(np.argmax(depth)) if n else 0
+    peak = int(np.flatnonzero(equity[:trough + 1] >= high[trough])[-1]) if n else 0
+
+    periods = []
+    side = np.sign(held)
+    for i in range(1, n):
+        if side[i] == 0:
+            continue
+        if periods and periods[-1]["side"] == side[i] and periods[-1]["end"] == i - 1:
+            periods[-1]["end"] = i
+        else:
+            periods.append({"side": int(side[i]), "start": i - 1, "end": i})
+    for period in periods:
+        chunk = pnl[period["start"] + 1:period["end"] + 1]
+        period["pnl"] = float(cumulate(chunk)[-1])
+
+    return _Perf(
+        held=held, pnl=pnl, equity=equity, benchmark=cumulate(ret),
+        long=cumulate(np.where(held > 0, pnl, 0.0)),
+        short=cumulate(np.where(held < 0, pnl, 0.0)),
+        high=high, periods=periods,
+        drawdown=float(depth[trough]) if n else 0.0, trough=trough, peak=peak,
+        options=options, unit=unit,
+    )
+
+
+def _signed(value: float, decimals: int = 1) -> str:
+    """Format with an explicit sign and a true minus, e.g. '+8.0', '\u22123.2'."""
+    text = f"{value:+.{decimals}f}"
+    if float(text) == 0:
+        text = text.replace("-", "+")
+    return text.replace("-", "\u2212")
+
+
+def _equity_runs(perf: _Perf) -> list:
+    """Split the equity line into runs of constant held position.
+
+    Returns [(start, stop, held)] where rows start..stop (inclusive) form one
+    stretch drawn in a single colour and width. Consecutive runs share an end
+    point so the line is unbroken.
+    """
+    n = len(perf.equity)
+    runs, a = [], 1
+    for i in range(2, n + 1):
+        if i == n or perf.held[i] != perf.held[a]:
+            runs.append((a - 1, i - 1, perf.held[a]))
+            a = i
+    return runs
+
+
+def _run_style(held: float):
+    """Colour by side, width by size, for one stretch of the equity line."""
+    if held == 0:
+        return _FLAT_COLOR, _PERF_LINE_MIN_PX
+    width = _PERF_LINE_MIN_PX + (_PERF_LINE_MAX_PX - _PERF_LINE_MIN_PX) * abs(held) / _POS_LIMIT
+    return (POSITION_COLOR if held > 0 else DOWN_COLOR), width
+
+
+def _perf_series(perf: _Perf) -> list:
+    """Lines shown in the performance pane: (label, values, emphasised).
+
+    The lines are named by end-of-line labels rather than legend entries, so
+    the legend stays one row.
+    """
+    series = [("P&L", perf.equity, True)]
+    if perf.options["benchmark"]:
+        series.append(("Buy & hold", perf.benchmark, False))
+    if perf.options["split"]:
+        series.append(("Longs", perf.long, False))
+        series.append(("Shorts", perf.short, False))
+    return series
+
+
+def _perf_y_range(perf: _Perf, pane_h_px: float) -> tuple:
+    values = np.concatenate([v for _, v, _ in _perf_series(perf)] + [[0.0]])
+    lo, hi = float(np.nanmin(values)), float(np.nanmax(values))
+    pad = ((hi - lo) or 1.0) * 0.1
+    below = pad
+    if _drawdown_label(perf):
+        # Reserve a fixed pixel band under the lowest point for the label.
+        frac = min(0.4, 24 / max(pane_h_px, 1))
+        below = max(pad, (hi - lo + pad) * frac / (1 - frac))
+    return lo - below, hi + pad
+
+
+def _end_labels(perf: _Perf, pane_h_px: float, font_px: float) -> list:
+    """End-of-line labels [(text, y, emphasised)], nudged apart vertically."""
+    lo, hi = _perf_y_range(perf, pane_h_px)
+    min_gap = (hi - lo) * (font_px * 1.25) / max(pane_h_px, 1)
+    labels = sorted(
+        ([f"{name} {_signed(vals[-1])}", float(vals[-1]), bold]
+         for name, vals, bold in _perf_series(perf)),
+        key=lambda item: item[1])
+    for prev, cur in zip(labels, labels[1:]):
+        cur[1] = max(cur[1], prev[1] + min_gap)
+    return [tuple(item) for item in labels]
+
+
+def _perf_pane_label(perf: _Perf) -> str:
+    how = "Compounded" if perf.options["compound"] else "Cumulative"
+    return f"{how} P&L, % of full position"
+
+
+def _drawdown_label(perf: _Perf) -> Optional[str]:
+    if not perf.options["underwater"] or perf.drawdown < 0.05:
+        return None
+    days = perf.trough - perf.peak
+    return f"Deepest drawdown \u2212{perf.drawdown:.1f}, {days} {perf.unit}"
+
+
+def _period_text(perf: _Perf) -> list:
+    """Hover text per row describing the holding period it belongs to."""
+    text = ["no position"] * len(perf.equity)
+    for period in perf.periods:
+        side = "long" if period["side"] > 0 else "short"
+        label = f"{side} {period['end'] - period['start']} {perf.unit}, {_signed(period['pnl'])}"
+        for i in range(period["start"] + 1, period["end"] + 1):
+            text[i] = label
+    return text
+
+
 def _candle_width_fracs(volume, kind: str) -> np.ndarray:
     """Return each candle's width as a fraction of one time slot.
 
@@ -201,6 +411,7 @@ class _PosData:
     slot: pd.Timedelta
     y_range: tuple                # price-pane y range
     kind: str
+    perf: Optional[_Perf] = None  # set when a performance pane is requested
 
 
 def _position_as_series(position) -> pd.Series:
@@ -442,8 +653,13 @@ def _prepare(df, price, position, volume, kind, xaxis, yaxis,
     )
 
 
-def _pane_heights(chart_h_px: float, layout: str, volume_pane: bool) -> list:
-    """Return [(key, height_px, gap_above_px), ...] top to bottom."""
+def _pane_heights(chart_h_px: float, layout: str, volume_pane: bool,
+                  perf: Optional[_Perf] = None) -> list:
+    """Return [(key, height_px, gap_above_px), ...] top to bottom.
+
+    chart_h_px covers the price, volume and position panes. Performance panes
+    are added below and make the stack taller rather than squeezing the rest.
+    """
     panes = []
     if volume_pane:
         panes.append(("volume", max(_VOL_PANE_MIN_PX, chart_h_px * _VOL_PANE_FRAC), _PANE_GAP_PX))
@@ -452,7 +668,19 @@ def _pane_heights(chart_h_px: float, layout: str, volume_pane: bool) -> list:
     else:
         panes.append(("position", max(_POS_PANE_MIN_PX, chart_h_px * _POS_PANE_FRAC), _PANE_GAP_PX))
     used = sum(h + gap for _, h, gap in panes)
-    return [("price", max(chart_h_px - used, chart_h_px * 0.3), 0)] + panes
+    panes = [("price", max(chart_h_px - used, chart_h_px * 0.3), 0)] + panes
+    if perf is not None:
+        panes.append(("performance",
+                      max(_PERF_PANE_MIN_PX, chart_h_px * _PERF_PANE_FRAC), _PANE_GAP_PX))
+        if perf.options["periods"]:
+            panes.append(("periods",
+                          max(_PERIODS_PANE_MIN_PX, chart_h_px * _PERIODS_PANE_FRAC),
+                          _PANE_GAP_PX))
+    return panes
+
+
+def _stack_height(panes: list) -> float:
+    return sum(h + gap for _, h, gap in panes)
 
 
 def _pane_domains(panes: list) -> dict:
@@ -503,12 +731,19 @@ def _posplot_plotly(d: _PosData, layout, trades, volume_pane, yaxis,
     legend_labels = (
         (["Buy", "Sell", "Average entry"] if show_trades else []) + ["Long", "Short"]
     )
-    m = LayoutMetrics.from_params(dim, font, title, source, use_labels=True, idx=d.idx)
+    perf = d.perf
+    m = LayoutMetrics.from_params(
+        dim, font, title, source, use_labels=True, idx=d.idx,
+        labels_margin_px=_PERF_LABEL_MARGIN_PX if perf is not None else 0)
     label_h_px = m.font_size + 8
     legend_h_px = _estimate_legend_h_px(legend_labels, m.font_size, m.chart_w_px)
     m.legend_h_px = legend_h_px + label_h_px
 
-    domains = _pane_domains(_pane_heights(m.chart_h_px, layout, volume_pane))
+    panes = _pane_heights(m.chart_h_px, layout, volume_pane, perf)
+    pane_px = {key: h for key, h, _ in panes}
+    m.chart_h_px = _stack_height(panes)  # performance panes add height
+    domains = _pane_domains(panes)
+    bottom_axis = {"position": "y3", "performance": "y4", "periods": "y5"}[panes[-1][0]]
     slot_ms = d.slot / pd.Timedelta(milliseconds=1)
     x = d.idx
     fig = go.Figure()
@@ -615,6 +850,59 @@ def _posplot_plotly(d: _PosData, layout, trades, volume_pane, yaxis,
             hovertemplate="Average entry: %{y:.4g}<extra></extra>",
         ))
 
+    # --- performance ------------------------------------------------------
+    if perf is not None:
+        opts = perf.options
+        if opts["underwater"]:
+            # Invisible line along the previous high, then fill down to equity.
+            fig.add_trace(go.Scatter(
+                x=x, y=perf.high, mode="lines", yaxis="y4", hoverinfo="skip",
+                line=dict(width=0, color=FT_FONT_COLOR), showlegend=False))
+            fig.add_trace(go.Scatter(
+                x=x, y=perf.equity, mode="lines", yaxis="y4", hoverinfo="skip",
+                showlegend=False, line=dict(width=0, color=FT_FONT_COLOR),
+                fill="tonexty", fillcolor=_rgba(FT_FONT_COLOR, _UNDERWATER_ALPHA)))
+        if opts["benchmark"]:
+            fig.add_trace(go.Scatter(
+                x=x, y=perf.benchmark, mode="lines", yaxis="y4", name="Buy and hold",
+                showlegend=False,
+                line=dict(color=_FLAT_COLOR, width=1.5, dash="dash"),
+                hovertemplate="Buy and hold: %{y:+.1f}<extra></extra>"))
+        if opts["split"]:
+            for name, values, color in (("From longs", perf.long, POSITION_COLOR),
+                                        ("From shorts", perf.short, DOWN_COLOR)):
+                fig.add_trace(go.Scatter(
+                    x=x, y=values, mode="lines", yaxis="y4", name=name, showlegend=False,
+                    line=dict(color=color, width=1.2, dash="dot"),
+                    hovertemplate=name + ": %{y:+.1f}<extra></extra>"))
+        # One trace per stretch of constant position: colour = side, width = size.
+        for start, stop, held in _equity_runs(perf):
+            color, width = _run_style(held)
+            fig.add_trace(go.Scatter(
+                x=x[start:stop + 1], y=perf.equity[start:stop + 1], mode="lines",
+                yaxis="y4", hoverinfo="skip", showlegend=False,
+                line=dict(color=color, width=width)))
+        fig.add_trace(go.Scatter(
+            x=x, y=perf.equity, mode="lines", yaxis="y4", name="P&L", showlegend=False,
+            line=dict(color=FT_FONT_COLOR, width=0),
+            hovertemplate="P&L: %{y:+.1f}<extra></extra>"))
+        if opts["periods"]:
+            fig.add_trace(go.Bar(
+                x=[x[q["start"]] for q in perf.periods], offset=0,
+                width=[(x[q["end"]] - x[q["start"]]) / pd.Timedelta(milliseconds=1)
+                       for q in perf.periods],
+                y=[q["pnl"] for q in perf.periods], yaxis="y5",
+                hoverinfo="skip", showlegend=False,
+                marker=dict(
+                    color=[_rgba(POSITION_COLOR if q["side"] > 0 else DOWN_COLOR, 0.7)
+                           for q in perf.periods],
+                    line=dict(color="#FFFFFF", width=1.5))))
+            fig.add_trace(go.Scatter(
+                x=x, y=np.zeros(len(x)), mode="lines", yaxis="y5", showlegend=False,
+                name="Holding period", line=dict(width=0, color=FT_FONT_COLOR),
+                customdata=_period_text(perf),
+                hovertemplate="Holding period: %{customdata}<extra></extra>"))
+
     # --- layout -----------------------------------------------------------
     tick_font = dict(family=m.font_family, size=m.font_size - 1, color=FT_FONT_COLOR)
 
@@ -625,7 +913,7 @@ def _posplot_plotly(d: _PosData, layout, trades, volume_pane, yaxis,
         return axis
 
     x_axis = dict(
-        type="date", anchor="y3", showgrid=False, zeroline=False,
+        type="date", anchor=bottom_axis, showgrid=False, zeroline=False,
         range=[x[0] - d.slot, x[-1] + d.slot],
         hoverformat=_infer_hover_date_format(d.idx),
         showspikes=True, spikemode="across", spikesnap="cursor",
@@ -666,10 +954,34 @@ def _posplot_plotly(d: _PosData, layout, trades, volume_pane, yaxis,
         layout_kwargs["yaxis3"].update(zeroline=True, zerolinecolor="#999999",
                                        zerolinewidth=1)
 
+    zero_line = dict(zeroline=True, zerolinecolor="#999999", zerolinewidth=1)
+    if perf is not None:
+        layout_kwargs["yaxis4"] = y_axis("performance", fixedrange=True,
+                                         range=list(_perf_y_range(perf, pane_px["performance"])),
+                                         **zero_line)
+        if perf.options["periods"]:
+            layout_kwargs["yaxis5"] = y_axis("periods", fixedrange=True, nticks=3,
+                                             **zero_line)
+
     _draw_title_plotly(fig, m, layout_kwargs)
     fig.update_layout(**layout_kwargs)
     _draw_accent_line_plotly(fig, m)
     _draw_source_plotly(fig, m)
+
+    if perf is not None:
+        small_font = dict(family=m.font_family, size=m.font_size - 2, color=FT_FONT_COLOR)
+        for text, y, bold in _end_labels(perf, pane_px["performance"], m.font_size - 2):
+            fig.add_annotation(
+                text=f"<b>{text}</b>" if bold else text, x=x[-1], y=y,
+                xref="x", yref="y4", xanchor="left", yanchor="middle", xshift=8,
+                showarrow=False, font=small_font)
+        dd_text = _drawdown_label(perf)
+        if dd_text:
+            fig.add_annotation(
+                text=dd_text, x=x[perf.trough], y=perf.equity[perf.trough],
+                xref="x", yref="y4", xanchor="center", yanchor="top", yshift=-4,
+                showarrow=False,
+                font=dict(family=m.font_family, size=m.font_size - 3, color="#6B6661"))
 
     # Pane labels sit in the gap above each pane, left-aligned to the plot.
     labels = [("price", _price_label(d, yaxis))]
@@ -677,6 +989,10 @@ def _posplot_plotly(d: _PosData, layout, trades, volume_pane, yaxis,
         labels.append(("volume", "Volume"))
     if not is_strip:
         labels.append(("position", "Position, −100 to +100"))
+    if perf is not None:
+        labels.append(("performance", _perf_pane_label(perf)))
+        if perf.options["periods"]:
+            labels.append(("periods", "P&L by holding period"))
     for key, text in labels:
         fig.add_annotation(
             text=f"<b>{text}</b>", x=0, y=domains[key][1], xref="paper", yref="paper",
@@ -695,16 +1011,22 @@ def _posplot_mpl(d: _PosData, layout, trades, volume_pane, yaxis,
     """matplotlib implementation: GridSpec panes sharing the date axis."""
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
     from matplotlib.colors import LinearSegmentedColormap
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
     from matplotlib.ticker import EngFormatter
 
     is_strip = layout == "strip"
-    m = LayoutMetrics.from_params(dim, font, title, source, use_labels=True, idx=d.idx)
+    perf = d.perf
+    m = LayoutMetrics.from_params(
+        dim, font, title, source, use_labels=True, idx=d.idx,
+        labels_margin_px=_PERF_LABEL_MARGIN_PX if perf is not None else 0)
     font_size = m.font_size
     small = font_size - 3
-    panes = _pane_heights(m.chart_h_px, layout, volume_pane)
+    panes = _pane_heights(m.chart_h_px, layout, volume_pane, perf)
+    pane_px = {key: h for key, h, _ in panes}
+    m.chart_h_px = _stack_height(panes)  # performance panes add height
 
     fig = plt.figure(figsize=(m.total_w_px / 100, (m.total_h_px + 40) / 100),
                      layout="constrained")
@@ -714,6 +1036,7 @@ def _posplot_mpl(d: _PosData, layout, trades, volume_pane, yaxis,
         axes[key] = fig.add_subplot(grid[row, 0], sharex=first)
         first = first or axes[key]
     ax_price, ax_pos = axes["price"], axes["position"]
+    ax_bottom = axes[panes[-1][0]]
 
     x = mdates.date2num(d.idx.to_pydatetime())
     slot_days = d.slot / pd.Timedelta(days=1)
@@ -797,6 +1120,52 @@ def _posplot_mpl(d: _PosData, layout, trades, volume_pane, yaxis,
     long_color = STRIP_LONG_COLOR if is_strip else POSITION_COLOR
     handles += [Patch(color=long_color, alpha=1 if is_strip else 0.5, label="Long"),
                 Patch(color=DOWN_COLOR, alpha=1 if is_strip else 0.5, label="Short")]
+    # --- performance ------------------------------------------------------
+    if perf is not None:
+        opts = perf.options
+        ax_perf = axes["performance"]
+        if opts["underwater"]:
+            ax_perf.fill_between(x, perf.high, perf.equity, color=FT_FONT_COLOR,
+                                 alpha=_UNDERWATER_ALPHA, linewidth=0)
+        if opts["benchmark"]:
+            ax_perf.plot(x, perf.benchmark, color=_FLAT_COLOR, linewidth=1.3, linestyle="--")
+        if opts["split"]:
+            ax_perf.plot(x, perf.long, color=POSITION_COLOR, linewidth=1.1, linestyle=":")
+            ax_perf.plot(x, perf.short, color=DOWN_COLOR, linewidth=1.1, linestyle=":")
+        runs = _equity_runs(perf)
+        if runs:
+            styles = [_run_style(held) for _, _, held in runs]
+            ax_perf.add_collection(LineCollection(
+                [np.column_stack([x[a:b + 1], perf.equity[a:b + 1]]) for a, b, _ in runs],
+                colors=[c for c, _ in styles],
+                linewidths=[w * 0.72 for _, w in styles],  # px to points at 100 dpi
+                capstyle="round", joinstyle="round", zorder=3))
+        ax_perf.axhline(0, color="#999999", linewidth=1, zorder=1)
+        ax_perf.set_ylim(*_perf_y_range(perf, pane_px["performance"]))
+        style(ax_perf, _perf_pane_label(perf))
+        for text, y, bold in _end_labels(perf, pane_px["performance"], small * 1.39):
+            ax_perf.annotate(text, xy=(x[-1], y), xytext=(6, 0), textcoords="offset points",
+                             va="center", ha="left", fontsize=small, color=FT_FONT_COLOR,
+                             fontweight="bold" if bold else "normal", annotation_clip=False)
+        dd_text = _drawdown_label(perf)
+        if dd_text:
+            ax_perf.annotate(dd_text, xy=(x[perf.trough], perf.equity[perf.trough]),
+                             xytext=(0, -4), textcoords="offset points", va="top",
+                             ha="center", fontsize=small - 1, color="#6B6661")
+        if opts["periods"]:
+            ax_per = axes["periods"]
+            if perf.periods:
+                ax_per.bar(
+                    [x[q["start"]] for q in perf.periods],
+                    [q["pnl"] for q in perf.periods],
+                    width=[x[q["end"]] - x[q["start"]] for q in perf.periods],
+                    align="edge", alpha=0.7, edgecolor="white", linewidth=1,
+                    color=[POSITION_COLOR if q["side"] > 0 else DOWN_COLOR
+                           for q in perf.periods])
+            ax_per.axhline(0, color="#999999", linewidth=1, zorder=1)
+            ax_per.locator_params(axis="y", nbins=3)
+            style(ax_per, "P&L by holding period")
+
     legend_kwargs = dict(handles=handles, frameon=False, fontsize=small, handlelength=1.4,
                          ncol=len(handles), columnspacing=1.0, handletextpad=0.5)
     title_text = "\n".join(t for t in (m.title_main, m.title_sub) if t)
@@ -816,14 +1185,14 @@ def _posplot_mpl(d: _PosData, layout, trades, volume_pane, yaxis,
 
     # --- shared date axis -------------------------------------------------
     for key, ax in axes.items():
-        if ax is not ax_pos:
+        if ax is not ax_bottom:
             ax.tick_params(axis="x", labelbottom=False)
             ax.spines["bottom"].set_visible(False)
-    ax_pos.xaxis_date()
+    ax_bottom.xaxis_date()
     locator = mdates.AutoDateLocator()
-    ax_pos.xaxis.set_major_locator(locator)
-    ax_pos.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
-    ax_pos.set_xlim(x[0] - slot_days, x[-1] + slot_days)
+    ax_bottom.xaxis.set_major_locator(locator)
+    ax_bottom.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+    ax_bottom.set_xlim(x[0] - slot_days, x[-1] + slot_days)
 
     # --- source -----------------------------------------------------------
     if m.source_text:
@@ -839,12 +1208,14 @@ def _posplot_mpl(d: _PosData, layout, trades, volume_pane, yaxis,
 def posplot(df, *,
             price=None, position="position", volume=None,
             kind="line", layout="panes", trades=True, volume_pane=False,
+            performance=False,
             xaxis=None, yaxis=None, font=None, dim=None, title=None,
             source=None, backend=None):
     """Plot an asset's price alongside the portfolio's position in it.
 
     Layout (top to bottom): accent line, title, subtitle, legend, price pane,
-    optional volume pane, position pane or strip, source.
+    optional volume pane, position pane or strip, optional performance
+    panes, source.
 
     The quickest route needs only a Bloomberg ticker and a position::
 
@@ -892,9 +1263,24 @@ def posplot(df, *,
         xaxis: dict with optional key: range ([start, end]). Restricts the
             plotted window; trades and entry price still use the full history.
         yaxis: dict with optional keys: range, name. Applies to the price pane.
+        performance: if True, add a pane showing what the position earned:
+            cumulative P&L in percent of a full-size position. A position set
+            at time t first earns the return from t to t+1. The line is
+            coloured by side (long, short, flat) and thicker for larger
+            positions. P&L restarts at zero at the left edge of the plotted
+            window and excludes costs. Pass a dict to choose the layers:
+            benchmark (True): a buy-and-hold line, i.e. a constant +100.
+            underwater (True): shade between the previous high and the line,
+            and label the deepest drawdown.
+            periods (False): an extra pane with one bar per holding period
+            (a stretch held on the same side), as wide as it lasted and as
+            tall as it earned.
+            split (False): separate lines for P&L earned long and short.
+            compound (False): compound daily P&L instead of summing it.
         font: dict with optional keys: size, family.
         dim: dict with optional keys: width, height, aspect_ratio. Governs
-            the chart area (all panes together), not the title or source.
+            the price, volume and position panes together, not the title or
+            source. Performance panes add height below.
         title: dict with optional keys: main (str), sub (str).
         source: list of source strings, e.g. ['Bloomberg'].
         backend: 'matplotlib' or 'plotly'. Defaults to get_backend().
@@ -914,6 +1300,7 @@ def posplot(df, *,
     """
     if kind not in _KINDS:
         raise ValueError(f"kind must be one of {_KINDS}, got {kind!r}")
+    perf_options = _resolve_performance(performance)
 
     if isinstance(df, str):
         ticker = df
@@ -939,6 +1326,9 @@ def posplot(df, *,
         raise ValueError("volume_pane=True needs a volume column. Pass volume='<column>'.")
 
     d = _prepare(df, price, position, volume, kind, xaxis, yaxis, show_trades=trades)
+    if perf_options is not None:
+        unit = "days" if d.slot >= pd.Timedelta(days=1) else "bars"
+        d.perf = _performance(d.close, d.pos, perf_options, unit=unit)
     dim = {**_DEFAULT_DIM[layout], **(dim or {})}
 
     if kind == "vcandle" and dim["width"] / max(len(d.idx), 1) < _VCANDLE_MIN_SLOT_PX:
