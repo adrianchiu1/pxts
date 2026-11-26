@@ -9,6 +9,7 @@ import pandas as pd
 from pxts.core import infer_freq, set_tz, to_dense, validate_ts  # noqa: F401
 from pxts.io import write_csv as _write_csv, read_bdh as _read_bdh
 from pxts.plots import tsplot as _plot
+from pxts.position import posplot as _posplot
 
 
 @pd.api.extensions.register_dataframe_accessor("ts")
@@ -78,4 +79,41 @@ class TsAccessor:
             source=source,
             backend=backend,
             **kwargs,
+        )
+
+    def posplot(
+        self,
+        *,
+        price="close",
+        position="position",
+        volume=None,
+        kind="line",
+        layout="panes",
+        trades=True,
+        volume_pane=False,
+        xaxis=None,
+        yaxis=None,
+        font=None,
+        dim=None,
+        title=None,
+        source=None,
+        backend=None,
+    ):
+        """Plot price alongside portfolio position. See pxts.position.posplot for details."""
+        return _posplot(
+            self._obj,
+            price=price,
+            position=position,
+            volume=volume,
+            kind=kind,
+            layout=layout,
+            trades=trades,
+            volume_pane=volume_pane,
+            xaxis=xaxis,
+            yaxis=yaxis,
+            font=font,
+            dim=dim,
+            title=title,
+            source=source,
+            backend=backend,
         )

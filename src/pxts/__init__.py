@@ -18,6 +18,7 @@ Public API (all accessible via star import):
   get_backend()                   — return active backend name ('plotly' or 'matplotlib')
   IS_JUPYTER                      — bool, True if running in a Jupyter/IPython kernel
   tsplot(df, cols=None, ...)      — plot time series (single or dual axis via yaxis2)
+  posplot(df, price=, position=)  — plot price alongside portfolio position (-100..+100)
 
 The .ts accessor is registered automatically on import of this module.
 Usage: df.ts.set_tz() / df.ts.to_dense(freq='D') / df.ts.infer_freq()
@@ -49,6 +50,7 @@ from pxts.io import read_csv, write_csv, read_xlsx, read_bdh, read_mb  # noqa: E
 from pxts._backend import get_backend, IS_JUPYTER  # noqa: E402
 from pxts.theme import apply_theme, FT_COLORS, OKABE_ITO_COLORS  # noqa: E402
 from pxts.plots import tsplot  # noqa: E402
+from pxts.position import posplot  # noqa: E402
 
 apply_theme()  # Runs once at import — registers plotly template + sets matplotlib rcParams
 
@@ -66,6 +68,7 @@ __all__ = [
     "get_backend",
     "IS_JUPYTER",
     "tsplot",
+    "posplot",
     "FT_COLORS",
     "OKABE_ITO_COLORS",
 ]

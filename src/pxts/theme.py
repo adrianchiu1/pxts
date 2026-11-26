@@ -40,6 +40,16 @@ OKABE_ITO_COLORS: list = [
 # Default palette — FT style.
 pxts_COLORS: list = list(FT_COLORS)
 
+# Price/position chart colours (posplot). All drawn from the FT palette.
+# Blue vs claret separates under red-green colour blindness, unlike green/red.
+UP_COLOR: str = FT_COLORS[0]        # Oxford — price line, up candles
+DOWN_COLOR: str = FT_COLORS[4]      # Claret — down candles, short exposure, sells
+POSITION_COLOR: str = FT_COLORS[2]  # Teal — long exposure, buys
+# Diverging scale for the exposure strip: short, flat, long.
+STRIP_SHORT_COLOR: str = DOWN_COLOR
+STRIP_FLAT_COLOR: str = "#E6E7EA"
+STRIP_LONG_COLOR: str = "#007A86"
+
 # Fallback: plotly's built-in qualitative.Safe palette (24 colors, colorblind-friendly).
 # Used when series count exceeds len(pxts_COLORS).
 FALLBACK_PALETTE_NAME: str = "Safe"  # pc.qualitative.Safe
